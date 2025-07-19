@@ -1,0 +1,196 @@
+{
+  "statistics": {
+    "total_alerts": 31,
+    "false_positives": 0,
+    "true_positives": 0,
+    "accuracy": 0.0
+  },
+  "recent_alerts": [
+    {
+      "alert_type": "disengagement_detected",
+      "severity": "high",
+      "confidence": 0.85,
+      "timestamp": 1752949162.3906176
+    },
+    {
+      "alert_type": "disengagement_detected",
+      "severity": "high",
+      "confidence": 0.85,
+      "timestamp": 1752949192.5191183
+    },
+    {
+      "alert_type": "disengagement_detected",
+      "severity": "high",
+      "confidence": 0.85,
+      "timestamp": 1752949222.5210843
+    },
+    {
+      "alert_type": "disengagement_detected",
+      "severity": "high",
+      "confidence": 0.85,
+      "timestamp": 1752949253.770909
+    },
+    {
+      "alert_type": "disengagement_detected",
+      "severity": "high",
+      "confidence": 0.85,
+      "timestamp": 1752949283.792397
+    },
+    {
+      "alert_type": "disengagement_detected",
+      "severity": "high",
+      "confidence": 0.85,
+      "timestamp": 1752949313.9743063
+    },
+    {
+      "alert_type": "disengagement_detected",
+      "severity": "high",
+      "confidence": 0.85,
+      "timestamp": 1752949344.194737
+    },
+    {
+      "alert_type": "disengagement_detected",
+      "severity": "high",
+      "confidence": 0.85,
+      "timestamp": 1752949375.2091248
+    },
+    {
+      "alert_type": "disengagement_detected",
+      "severity": "high",
+      "confidence": 0.85,
+      "timestamp": 1752949405.4315567
+    },
+    {
+      "alert_type": "disengagement_detected",
+      "severity": "high",
+      "confidence": 0.85,
+      "timestamp": 1752949435.510266
+    },
+    {
+      "alert_type": "disengagement_detected",
+      "severity": "high",
+      "confidence": 0.85,
+      "timestamp": 1752949465.9211998
+    },
+    {
+      "alert_type": "disengagement_detected",
+      "severity": "high",
+      "confidence": 0.85,
+      "timestamp": 1752949496.5887184
+    },
+    {
+      "alert_type": "disengagement_detected",
+      "severity": "high",
+      "confidence": 0.85,
+      "timestamp": 1752949526.9473448
+    },
+    {
+      "alert_type": "disengagement_detected",
+      "severity": "high",
+      "confidence": 0.85,
+      "timestamp": 1752949557.365798
+    },
+    {
+      "alert_type": "disengagement_detected",
+      "severity": "high",
+      "confidence": 0.85,
+      "timestamp": 1752949587.8122082
+    },
+    {
+      "alert_type": "disengagement_detected",
+      "severity": "high",
+      "confidence": 0.85,
+      "timestamp": 1752949618.2602024
+    },
+    {
+      "alert_type": "disengagement_detected",
+      "severity": "high",
+      "confidence": 0.85,
+      "timestamp": 1752949648.6512227
+    },
+    {
+      "alert_type": "disengagement_detected",
+      "severity": "high",
+      "confidence": 0.85,
+      "timestamp": 1752949678.8074641
+    },
+    {
+      "alert_type": "disengagement_detected",
+      "severity": "high",
+      "confidence": 0.85,
+      "timestamp": 1752949709.7463996
+    },
+    {
+      "alert_type": "disengagement_detected",
+      "severity": "high",
+      "confidence": 0.85,
+      "timestamp": 1752949740.1172032
+    },
+    {
+      "alert_type": "disengagement_detected",
+      "severity": "high",
+      "confidence": 0.85,
+      "timestamp": 1752949770.1337726
+    },
+    {
+      "alert_type": "disengagement_detected",
+      "severity": "high",
+      "confidence": 0.85,
+      "timestamp": 1752949800.5636501
+    },
+    {
+      "alert_type": "disengagement_detected",
+      "severity": "high",
+      "confidence": 0.85,
+      "timestamp": 1752949830.941848
+    },
+    {
+      "alert_type": "disengagement_detected",
+      "severity": "high",
+      "confidence": 0.85,
+      "timestamp": 1752949861.536935
+    },
+    {
+      "alert_type": "disengagement_detected",
+      "severity": "high",
+      "confidence": 0.85,
+      "timestamp": 1752949891.6663258
+    },
+    {
+      "alert_type": "disengagement_detected",
+      "severity": "high",
+      "confidence": 0.85,
+      "timestamp": 1752949922.035033
+    },
+    {
+      "alert_type": "disengagement_detected",
+      "severity": "high",
+      "confidence": 0.85,
+      "timestamp": 1752949952.376257
+    },
+    {
+      "alert_type": "disengagement_detected",
+      "severity": "high",
+      "confidence": 0.85,
+      "timestamp": 1752949982.630153
+    },
+    {
+      "alert_type": "disengagement_detected",
+      "severity": "high",
+      "confidence": 0.85,
+      "timestamp": 1752950012.8101225
+    },
+    {
+      "alert_type": "disengagement_detected",
+      "severity": "high",
+      "confidence": 0.85,
+      "timestamp": 1752950044.6332366
+    },
+    {
+      "alert_type": "disengagement_detected",
+      "severity": "high",
+      "confidence": 0.85,
+      "timestamp": 1752950074.933695
+    }
+  ]
+}

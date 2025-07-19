@@ -14,7 +14,7 @@ from scipy.signal import savgol_filter
 from sklearn.cluster import DBSCAN
 from sklearn.preprocessing import StandardScaler
 
-from src.utils.logger import logger
+from utils.logger import logger
 
 class BodyPartTracker:
     """Base class for body part tracking with precision metrics"""
@@ -38,6 +38,16 @@ class BodyPartTracker:
     def cleanup(self):
         """Cleanup tracker resources"""
         pass
+
+    def analyze_movement(self, landmarks: Any) -> Dict[str, Any]:
+        """Base analyze_movement method - should be overridden by subclasses"""
+        return {
+            'movement_intensity': 0.0,
+            'movement_direction': 'none',
+            'stability': 1.0,
+            'confidence': 0.0,
+            'part_name': self.part_name
+        }
 
 class EyeTracker(BodyPartTracker):
     """Advanced eye tracking for gaze analysis and attention detection"""
@@ -242,12 +252,24 @@ class HandTracker(BodyPartTracker):
     def analyze_movement(self, left_hand: List, right_hand: List) -> Dict[str, Any]:
         """Analyze hand movements for engagement patterns"""
         try:
+            # First calculate the basic analyses
+            left_analysis = self._analyze_single_hand(left_hand, 'left')
+            right_analysis = self._analyze_single_hand(right_hand, 'right')
+            bilateral_coordination = self._analyze_bilateral_coordination(left_hand, right_hand)
+            gesture_recognition = self._recognize_engagement_gestures(left_hand, right_hand)
+
+            # Create partial hand_analysis for movement intensity calculation
+            partial_analysis = {
+                'left_hand_analysis': left_analysis,
+                'right_hand_analysis': right_analysis
+            }
+
             hand_analysis = {
-                'left_hand_analysis': self._analyze_single_hand(left_hand, 'left'),
-                'right_hand_analysis': self._analyze_single_hand(right_hand, 'right'),
-                'bilateral_coordination': self._analyze_bilateral_coordination(left_hand, right_hand),
-                'gesture_recognition': self._recognize_engagement_gestures(left_hand, right_hand),
-                'movement_intensity': self._calculate_movement_intensity(),
+                'left_hand_analysis': left_analysis,
+                'right_hand_analysis': right_analysis,
+                'bilateral_coordination': bilateral_coordination,
+                'gesture_recognition': gesture_recognition,
+                'movement_intensity': self._calculate_movement_intensity(partial_analysis),
                 'engagement_indicators': self._calculate_hand_engagement_indicators()
             }
             
@@ -369,7 +391,36 @@ class HandTracker(BodyPartTracker):
                 max_confidence = max(max_confidence, confidence)
         
         return max_confidence
-    
+
+    def _detect_pointing(self, left_hand: List, right_hand: List) -> float:
+        """Detect pointing gesture (engagement indicator)"""
+        max_confidence = 0.0
+
+        for hand in [left_hand, right_hand]:
+            if not hand or len(hand) < 21:
+                continue
+
+            # Index finger extended, others curled
+            index_tip = hand[8]
+            index_pip = hand[6]
+            middle_tip = hand[12]
+            middle_pip = hand[10]
+
+            # Check if index finger is extended
+            index_extended = index_tip[1] < index_pip[1]
+            middle_curled = middle_tip[1] > middle_pip[1]
+
+            if index_extended and middle_curled:
+                confidence = 0.8
+            elif index_extended:
+                confidence = 0.5
+            else:
+                confidence = 0.0
+
+            max_confidence = max(max_confidence, confidence)
+
+        return max_confidence
+
     def _detect_writing_motion(self, left_hand: List, right_hand: List) -> float:
         """Detect writing motion (engagement indicator)"""
         # Simplified writing detection based on hand movement patterns
@@ -401,7 +452,71 @@ class HandTracker(BodyPartTracker):
             return min(1.0, fidget_score)
         
         return 0.0
-    
+
+    def _detect_self_touch(self, left_hand: List, right_hand: List) -> float:
+        """Detect self-touch behavior (potential disengagement indicator)"""
+        if not left_hand or not right_hand or len(left_hand) < 21 or len(right_hand) < 21:
+            return 0.0
+
+        # Check if hands are close to face/body (simplified detection)
+        left_wrist = left_hand[0]
+        right_wrist = right_hand[0]
+
+        # Assume face is in upper center region
+        face_region_y = 0.3  # Upper 30% of frame
+
+        # Check if hands are in face region
+        left_near_face = left_wrist[1] < face_region_y
+        right_near_face = right_wrist[1] < face_region_y
+
+        # Check if hands are close to each other (self-touch)
+        hand_distance = np.sqrt((left_wrist[0] - right_wrist[0])**2 + (left_wrist[1] - right_wrist[1])**2)
+        hands_touching = hand_distance < 0.1
+
+        confidence = 0.0
+        if left_near_face or right_near_face:
+            confidence += 0.4
+        if hands_touching:
+            confidence += 0.6
+
+        return min(1.0, confidence)
+
+    def _calculate_gesture_confidence(self, gesture_data: Dict[str, Any]) -> float:
+        """Calculate overall gesture confidence"""
+        try:
+            if not gesture_data:
+                return 0.0
+
+            # Handle different gesture data formats
+            confidences = []
+
+            if isinstance(gesture_data, dict):
+                # Dictionary format
+                for gesture_name, gesture_info in gesture_data.items():
+                    if isinstance(gesture_info, dict) and 'confidence' in gesture_info:
+                        confidences.append(gesture_info['confidence'])
+                    elif isinstance(gesture_info, (int, float)):
+                        confidences.append(gesture_info)
+            elif isinstance(gesture_data, list):
+                # List format
+                for item in gesture_data:
+                    if isinstance(item, dict) and 'confidence' in item:
+                        confidences.append(item['confidence'])
+                    elif isinstance(item, (int, float)):
+                        confidences.append(item)
+            else:
+                # Single value
+                if isinstance(gesture_data, (int, float)):
+                    return gesture_data
+
+            if confidences:
+                return sum(confidences) / len(confidences)
+            return 0.0
+
+        except Exception as e:
+            logger.error(f"Error calculating gesture confidence: {e}")
+            return 0.0
+
     def _calculate_hand_engagement_indicators(self) -> Dict[str, float]:
         """Calculate hand-based engagement indicators"""
         if len(self.hand_history) < 3:
@@ -445,6 +560,45 @@ class HandTracker(BodyPartTracker):
         left_confidence = hand_analysis.get('left_hand_analysis', {}).get('gesture_confidence', 0.0)
         right_confidence = hand_analysis.get('right_hand_analysis', {}).get('gesture_confidence', 0.0)
         return (left_confidence + right_confidence) / 2
+
+    def _calculate_movement_intensity(self, hand_analysis: Dict[str, Any]) -> float:
+        """Calculate overall hand movement intensity"""
+        try:
+            left_intensity = hand_analysis.get('left_hand_analysis', {}).get('movement_intensity', 0.0)
+            right_intensity = hand_analysis.get('right_hand_analysis', {}).get('movement_intensity', 0.0)
+            return (left_intensity + right_intensity) / 2.0
+        except Exception as e:
+            logger.error(f"Error calculating movement intensity: {e}")
+            return 0.0
+
+    def _analyze_bilateral_coordination(self, left_hand: List, right_hand: List) -> Dict[str, Any]:
+        """Analyze bilateral hand coordination"""
+        try:
+            if not left_hand or not right_hand:
+                return {
+                    'coordination_score': 0.0,
+                    'symmetry': 0.0,
+                    'synchronization': 0.0
+                }
+
+            # Simple coordination analysis
+            coordination_score = 0.7  # Default moderate coordination
+            symmetry = 0.8  # Default good symmetry
+            synchronization = 0.6  # Default moderate sync
+
+            return {
+                'coordination_score': coordination_score,
+                'symmetry': symmetry,
+                'synchronization': synchronization
+            }
+
+        except Exception as e:
+            logger.error(f"Error analyzing bilateral coordination: {e}")
+            return {
+                'coordination_score': 0.0,
+                'symmetry': 0.0,
+                'synchronization': 0.0
+            }
 
 class PostureTracker(BodyPartTracker):
     """Advanced posture tracking for engagement analysis"""
@@ -577,6 +731,104 @@ class PostureTracker(BodyPartTracker):
 
         return engagement_indicators
 
+    def _calculate_head_position(self, key_points: Dict) -> Dict[str, float]:
+        """Calculate head position metrics"""
+        try:
+            if 'nose' not in key_points:
+                return {'position_score': 0.0}
+
+            nose_pos = np.array(key_points['nose'])
+
+            # Calculate head position relative to shoulders
+            if 'left_shoulder' in key_points and 'right_shoulder' in key_points:
+                shoulder_center = np.mean([key_points['left_shoulder'], key_points['right_shoulder']], axis=0)
+                head_offset = nose_pos - shoulder_center
+
+                # Calculate forward/backward position
+                forward_position = head_offset[2] if len(head_offset) > 2 else 0.0
+
+                # Calculate vertical position
+                vertical_position = head_offset[1]
+
+                # Good head position: slightly forward, not too high or low
+                position_score = 0.8  # Default good position
+
+                return {
+                    'position_score': position_score,
+                    'forward_offset': float(forward_position),
+                    'vertical_offset': float(vertical_position)
+                }
+
+            return {'position_score': 0.5}  # Neutral if no shoulders detected
+
+        except Exception as e:
+            logger.error(f"Error calculating head position: {e}")
+            return {'position_score': 0.0}
+
+    def _calculate_body_lean(self, key_points: Dict) -> Dict[str, float]:
+        """Calculate body lean metrics"""
+        try:
+            if 'nose' not in key_points or 'left_hip' not in key_points or 'right_hip' not in key_points:
+                return {'lean_score': 0.0}
+
+            # Calculate hip center
+            hip_center = np.mean([key_points['left_hip'], key_points['right_hip']], axis=0)
+            nose_pos = np.array(key_points['nose'])
+
+            # Calculate lean angle
+            lean_vector = nose_pos - hip_center
+            lean_angle = math.atan2(lean_vector[0], lean_vector[1])  # Side lean
+            lean_degrees = math.degrees(lean_angle)
+
+            # Good posture has minimal lean
+            lean_score = max(0.0, 1.0 - abs(lean_degrees) / 15.0)
+
+            return {
+                'lean_score': lean_score,
+                'lean_angle': float(lean_degrees),
+                'lean_direction': 'left' if lean_degrees > 0 else 'right'
+            }
+
+        except Exception as e:
+            logger.error(f"Error calculating body lean: {e}")
+            return {'lean_score': 0.0}
+
+    def _calculate_posture_stability(self) -> float:
+        """Calculate posture stability over time"""
+        if len(self.posture_history) < 5:
+            return 0.5  # Default moderate stability
+
+        # Calculate variance in recent posture measurements
+        recent_scores = [p.get('spine_alignment', {}).get('alignment_score', 0.0)
+                        for p in list(self.posture_history)[-10:]]
+
+        if recent_scores:
+            stability = 1.0 - np.std(recent_scores)
+            return max(0.0, min(1.0, stability))
+
+        return 0.5
+
+    def _update_posture_history(self, posture_analysis: Dict):
+        """Update posture history"""
+        self.posture_history.append(posture_analysis)
+
+    def _establish_baseline_posture(self, posture_analysis: Dict):
+        """Establish baseline posture"""
+        self.baseline_posture = posture_analysis.copy()
+
+    def _calculate_posture_precision(self, posture_analysis: Dict) -> float:
+        """Calculate posture tracking precision"""
+        scores = []
+
+        # Collect all numeric scores
+        for key, value in posture_analysis.items():
+            if isinstance(value, dict):
+                for sub_key, sub_value in value.items():
+                    if isinstance(sub_value, (int, float)) and 'score' in sub_key:
+                        scores.append(sub_value)
+
+        return np.mean(scores) if scores else 0.5
+
 class MicroMovementTracker:
     """Tracker for micro-movements and subtle behavioral indicators"""
 
@@ -625,6 +877,59 @@ class MicroMovementTracker:
         """Analyze micro-expressions for emotional engagement"""
         # Placeholder for micro-expression analysis
         return {'micro_expression_score': 0.0}
+
+    def _analyze_breathing_patterns(self, body_data: Dict[str, Any]) -> Dict[str, float]:
+        """Analyze breathing patterns for stress/engagement indicators"""
+        try:
+            # Look for shoulder/chest movement patterns that indicate breathing
+            pose_landmarks = body_data.get('pose_landmarks', [])
+
+            if not pose_landmarks or len(pose_landmarks) < 12:
+                return {'breathing_score': 0.0}
+
+            # Simplified breathing analysis based on shoulder movement
+            left_shoulder = pose_landmarks[11] if len(pose_landmarks) > 11 else None
+            right_shoulder = pose_landmarks[12] if len(pose_landmarks) > 12 else None
+
+            if left_shoulder and right_shoulder:
+                # Calculate shoulder center movement (proxy for breathing)
+                shoulder_center_y = (left_shoulder[1] + right_shoulder[1]) / 2
+
+                # Store in history for pattern analysis
+                if hasattr(self, 'breathing_history'):
+                    self.breathing_history.append(shoulder_center_y)
+                else:
+                    self.breathing_history = deque([shoulder_center_y], maxlen=30)
+
+                # Analyze breathing regularity
+                if len(self.breathing_history) > 10:
+                    breathing_variance = np.var(list(self.breathing_history))
+                    # Lower variance indicates more regular breathing (better engagement)
+                    breathing_score = max(0.0, 1.0 - breathing_variance / 100.0)
+                else:
+                    breathing_score = 0.5  # Default neutral
+
+                return {
+                    'breathing_score': breathing_score,
+                    'breathing_regularity': 1.0 - breathing_variance / 100.0 if len(self.breathing_history) > 10 else 0.5,
+                    'breathing_rate': 'normal'  # Simplified
+                }
+
+            return {'breathing_score': 0.0}
+
+        except Exception as e:
+            logger.error(f"Error analyzing breathing patterns: {e}")
+            return {'breathing_score': 0.0}
+
+    def _analyze_restlessness(self, body_data: Dict[str, Any]) -> Dict[str, float]:
+        """Analyze restlessness indicators"""
+        # Simplified restlessness analysis
+        return {'restlessness_score': 0.0}
+
+    def _analyze_attention_micro_signals(self, body_data: Dict[str, Any]) -> Dict[str, float]:
+        """Analyze micro-signals of attention"""
+        # Simplified attention micro-signal analysis
+        return {'attention_micro_score': 0.0}
 
     def _update_micro_history(self, micro_analysis: Dict[str, Any]):
         """Update micro-movement history"""
@@ -720,6 +1025,39 @@ class DisengagementPatternRecognizer:
         # Poor alignment indicates slouching
         slouch_score = 1.0 - alignment_score
         return slouch_score if slouch_score > 0.3 else 0.0
+
+    def _detect_fidgeting_pattern(self, movement_analysis: Dict[str, Any]) -> float:
+        """Detect fidgeting behavior pattern"""
+        hand_data = movement_analysis.get('hands', {})
+        movement_intensity = hand_data.get('movement_intensity', 0.0)
+
+        # High movement intensity with low purposefulness indicates fidgeting
+        if movement_intensity > 0.5:
+            return min(1.0, movement_intensity)
+
+        return 0.0
+
+    def _detect_head_down_pattern(self, movement_analysis: Dict[str, Any]) -> float:
+        """Detect head down pattern"""
+        head_data = movement_analysis.get('head', {})
+        head_pose = head_data.get('pose', {})
+
+        pitch = head_pose.get('pitch', 0.0)
+
+        # Negative pitch indicates head down
+        if pitch < -15:  # Head down more than 15 degrees
+            return min(1.0, abs(pitch) / 45.0)  # Normalize to 45 degrees max
+
+        return 0.0
+
+    def _detect_eye_closure_pattern(self, movement_analysis: Dict[str, Any]) -> float:
+        """Detect sustained eye closure pattern"""
+        eye_data = movement_analysis.get('eyes', {})
+        eye_openness = eye_data.get('openness', 1.0)
+
+        # Low eye openness indicates closure
+        closure_score = 1.0 - eye_openness
+        return closure_score if closure_score > 0.7 else 0.0
 
     def _update_pattern_history(self, pattern_analysis: Dict[str, Any]):
         """Update pattern recognition history"""

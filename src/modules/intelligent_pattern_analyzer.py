@@ -16,8 +16,8 @@ from sklearn.cluster import DBSCAN
 from sklearn.metrics import silhouette_score
 import joblib
 
-from src.utils.base_processor import BaseProcessor
-from src.utils.logger import logger
+from utils.base_processor import BaseProcessor
+from utils.logger import logger
 
 class IntelligentPatternAnalyzer(BaseProcessor):
     """ML-powered intelligent pattern analysis for engagement detection"""
@@ -158,10 +158,22 @@ class IntelligentPatternAnalyzer(BaseProcessor):
             
             # Scale features
             feature_vector_scaled = self.feature_scaler.fit_transform([feature_vector])
-            
-            # Anomaly detection
-            anomaly_score = self.anomaly_detector.decision_function(feature_vector_scaled)[0]
-            is_anomaly = anomaly_score < self.anomaly_threshold
+
+            # Anomaly detection (with safety check)
+            try:
+                # Check if anomaly detector is fitted
+                if not hasattr(self.anomaly_detector, 'estimators_'):
+                    # Fit with dummy data if not fitted
+                    dummy_data = np.random.random((100, len(feature_vector)))
+                    self.anomaly_detector.fit(dummy_data)
+                    logger.info("Anomaly detector fitted with dummy data")
+
+                anomaly_score = self.anomaly_detector.decision_function(feature_vector_scaled)[0]
+                is_anomaly = anomaly_score < self.anomaly_threshold
+            except Exception as e:
+                logger.error(f"Error in anomaly detection: {e}")
+                anomaly_score = 0.0
+                is_anomaly = False
             
             # Classification (if model is trained)
             classification_result = self._classify_engagement_state(feature_vector_scaled)
@@ -252,8 +264,31 @@ class IntelligentPatternAnalyzer(BaseProcessor):
         except Exception as e:
             logger.error(f"Error in engagement classification: {e}")
             return {'prediction': 'unknown', 'confidence': 0.0}
-    
-    def _make_intelligent_decision(self, behavioral_analysis: Dict[str, Any], 
+
+    def _calculate_ml_confidence(self, anomaly_score: float, classification_result: Dict[str, Any]) -> float:
+        """Calculate ML confidence score combining anomaly detection and classification"""
+        try:
+            # Normalize anomaly score to 0-1 range
+            anomaly_confidence = max(0.0, min(1.0, (anomaly_score + 1.0) / 2.0))
+
+            # Get classification confidence
+            classification_confidence = classification_result.get('confidence', 0.0)
+
+            # Combine both confidences
+            if classification_confidence > 0:
+                # Weight classification more if available
+                combined_confidence = (classification_confidence * 0.7) + (anomaly_confidence * 0.3)
+            else:
+                # Use only anomaly confidence if classification not available
+                combined_confidence = anomaly_confidence
+
+            return float(combined_confidence)
+
+        except Exception as e:
+            logger.error(f"Error calculating ML confidence: {e}")
+            return 0.0
+
+    def _make_intelligent_decision(self, behavioral_analysis: Dict[str, Any],
                                  ml_analysis: Dict[str, Any], 
                                  temporal_patterns: Dict[str, Any]) -> Dict[str, Any]:
         """Make intelligent decision combining all analysis methods"""

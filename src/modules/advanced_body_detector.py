@@ -15,11 +15,11 @@ from scipy.spatial.distance import euclidean
 from scipy.signal import savgol_filter
 import torch
 
-from src.utils.base_processor import BaseProcessor
-from src.utils.logger import logger
+from utils.base_processor import BaseProcessor
+from utils.logger import logger
 
 # Import specialized tracking classes
-from src.modules.body_trackers import (
+from modules.body_trackers import (
     BodyPartTracker, EyeTracker, HandTracker,
     PostureTracker, MicroMovementTracker, DisengagementPatternRecognizer
 )
@@ -55,8 +55,8 @@ class AdvancedBodyDetector(BaseProcessor):
         # Engagement pattern recognition
         self.disengagement_patterns = DisengagementPatternRecognizer()
         
-        # Performance optimization
-        self.frame_skip = config.get('frame_skip', 1)  # Process every N frames
+        # Performance optimization (ENHANCED FOR SPEED)
+        self.frame_skip = config.get('frame_skip', 4)  # Process every 4th frame for speed
         self.frame_counter = 0
         
     def initialize(self) -> bool:
@@ -66,9 +66,9 @@ class AdvancedBodyDetector(BaseProcessor):
             
             self.holistic = self.mp_holistic.Holistic(
                 static_image_mode=False,
-                model_complexity=2,  # Highest accuracy
-                enable_segmentation=True,
-                refine_face_landmarks=True,
+                model_complexity=0,  # OPTIMIZED: Fastest model (was 2)
+                enable_segmentation=False,  # OPTIMIZED: Disable segmentation for speed
+                refine_face_landmarks=False,  # OPTIMIZED: Disable refinement for speed
                 min_detection_confidence=self.min_detection_confidence,
                 min_tracking_confidence=self.min_tracking_confidence
             )

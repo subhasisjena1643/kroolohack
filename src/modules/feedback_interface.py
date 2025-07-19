@@ -14,7 +14,7 @@ from collections import deque
 import sqlite3
 from pathlib import Path
 
-from src.utils.logger import logger
+from utils.logger import logger
 
 @dataclass
 class FeedbackEntry:
@@ -49,8 +49,11 @@ class FeedbackInterface:
         self.feedback_queue = deque(maxlen=1000)
         self.feedback_history = deque(maxlen=5000)
         
-        # Flask app
-        self.app = Flask(__name__, template_folder='templates')
+        # Flask app - fix template folder path
+        import os
+        current_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        template_folder = os.path.join(current_dir, 'templates')
+        self.app = Flask(__name__, template_folder=template_folder)
         self._setup_routes()
         
         # Database
@@ -62,6 +65,38 @@ class FeedbackInterface:
         
         # Callbacks for feedback processing
         self.feedback_callbacks = []
+
+        # Enhanced real-time data tracking
+        self.current_engagement_data = {}
+        self.performance_metrics = {}
+        self.system_status = {
+            'status': 'initializing',
+            'fps': 0.0,
+            'processing_time': 0.0,
+            'active_students': 0,
+            'alerts': [],
+            'face_detection_active': False,
+            'continuous_learning_active': False,
+            'model_training_progress': 0,
+            'checkpoint_status': 'none',
+            'sota_datasets_loaded': False,
+            'target_fps': 30,
+            'current_fps': 0.0,
+            'face_detection_boxes': 0,
+            'gesture_detection_count': 0,
+            'alert_timeout_active': False
+        }
+
+        # Enhanced metrics tracking
+        self.component_performance = {}
+        self.training_metrics = {
+            'total_samples': 0,
+            'training_accuracy': 0.0,
+            'model_versions': {},
+            'last_checkpoint': None,
+            'sota_datasets_count': 0,
+            'checkpoint_saves': 0
+        }
     
     def _init_database(self):
         """Initialize SQLite database for feedback storage"""
@@ -164,6 +199,55 @@ class FeedbackInterface:
                 return jsonify(performance)
             except Exception as e:
                 logger.error(f"Error getting model performance: {e}")
+                return jsonify({'error': str(e)}), 500
+
+        @self.app.route('/api/system_status')
+        def get_system_status():
+            """Get current system status and metrics"""
+            try:
+                return jsonify(self.system_status)
+            except Exception as e:
+                logger.error(f"Error getting system status: {e}")
+                return jsonify({'error': str(e)}), 500
+
+        @self.app.route('/api/performance_metrics')
+        def get_performance_metrics():
+            """Get detailed performance metrics"""
+            try:
+                metrics = {
+                    'system_status': self.system_status,
+                    'component_performance': self.component_performance,
+                    'training_metrics': self.training_metrics,
+                    'timestamp': time.time()
+                }
+                return jsonify(metrics)
+            except Exception as e:
+                logger.error(f"Error getting performance metrics: {e}")
+                return jsonify({'error': str(e)}), 500
+
+        @self.app.route('/api/training_progress')
+        def get_training_progress():
+            """Get continuous learning training progress"""
+            try:
+                return jsonify(self.training_metrics)
+            except Exception as e:
+                logger.error(f"Error getting training progress: {e}")
+                return jsonify({'error': str(e)}), 500
+
+        @self.app.route('/api/checkpoint_status')
+        def get_checkpoint_status():
+            """Get model checkpoint status"""
+            try:
+                checkpoint_info = {
+                    'status': self.system_status.get('checkpoint_status', 'none'),
+                    'last_checkpoint': self.training_metrics.get('last_checkpoint'),
+                    'total_saves': self.training_metrics.get('checkpoint_saves', 0),
+                    'model_versions': self.training_metrics.get('model_versions', {}),
+                    'timestamp': time.time()
+                }
+                return jsonify(checkpoint_info)
+            except Exception as e:
+                logger.error(f"Error getting checkpoint status: {e}")
                 return jsonify({'error': str(e)}), 500
     
     def start_server(self):
@@ -415,6 +499,61 @@ class FeedbackInterface:
             
         except Exception as e:
             logger.error(f"Error exporting feedback dataset: {e}")
+
+    def update_engagement_data(self, engagement_data: Dict[str, Any]):
+        """Update current engagement data for display"""
+        self.current_engagement_data = engagement_data
+
+        # Update system status with engagement data
+        if engagement_data:
+            self.system_status['active_students'] = engagement_data.get('face_count', 0)
+            self.system_status['face_detection_boxes'] = engagement_data.get('face_count', 0)
+            self.system_status['face_detection_active'] = engagement_data.get('face_count', 0) > 0
+
+    def update_performance_metrics(self, fps: float, processing_time: float, component_times: Dict[str, float]):
+        """Update performance metrics"""
+        self.system_status['fps'] = fps
+        self.system_status['current_fps'] = fps
+        self.system_status['processing_time'] = processing_time
+        self.component_performance = component_times
+
+        # Update status based on performance
+        if fps >= 25:
+            self.system_status['status'] = 'optimal'
+        elif fps >= 15:
+            self.system_status['status'] = 'good'
+        elif fps >= 5:
+            self.system_status['status'] = 'acceptable'
+        else:
+            self.system_status['status'] = 'poor'
+
+    def update_training_metrics(self, total_samples: int, accuracy: float, model_versions: Dict[str, str]):
+        """Update continuous learning training metrics"""
+        self.training_metrics['total_samples'] = total_samples
+        self.training_metrics['training_accuracy'] = accuracy
+        self.training_metrics['model_versions'] = model_versions
+        self.system_status['continuous_learning_active'] = total_samples > 0
+        self.system_status['model_training_progress'] = min(100, (total_samples / 1000) * 100)  # Progress out of 1000 samples
+
+    def update_checkpoint_status(self, checkpoint_id: str, save_count: int):
+        """Update model checkpoint status"""
+        self.training_metrics['last_checkpoint'] = checkpoint_id
+        self.training_metrics['checkpoint_saves'] = save_count
+        self.system_status['checkpoint_status'] = 'active' if checkpoint_id else 'none'
+
+    def update_alert_status(self, alerts: List[Dict[str, Any]], timeout_active: bool):
+        """Update alert status"""
+        self.system_status['alerts'] = alerts
+        self.system_status['alert_timeout_active'] = timeout_active
+
+    def update_gesture_detection(self, gesture_count: int):
+        """Update gesture detection count"""
+        self.system_status['gesture_detection_count'] = gesture_count
+
+    def update_sota_datasets_status(self, datasets_loaded: bool, dataset_count: int):
+        """Update SOTA datasets status"""
+        self.system_status['sota_datasets_loaded'] = datasets_loaded
+        self.training_metrics['sota_datasets_count'] = dataset_count
 
 # HTML Template for feedback interface
 FEEDBACK_TEMPLATE = '''

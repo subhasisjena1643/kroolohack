@@ -13,7 +13,11 @@ from pathlib import Path
 from typing import Dict, List, Tuple, Any, Optional
 import random
 
+import sys
+import os
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
 from src.utils.logger import logger
+from src.modules.model_checkpoint_manager import ModelCheckpointManager
 
 class DatasetBootstrap:
     """Bootstrap system for creating initial training datasets"""
@@ -22,476 +26,311 @@ class DatasetBootstrap:
         self.data_dir = Path(data_dir)
         self.datasets_dir = self.data_dir / "datasets"
         self.external_dir = self.data_dir / "external"
+        self.checkpoints_dir = self.data_dir / "checkpoints"
+        self.checkpoint_manager = ModelCheckpointManager(self.checkpoints_dir)
         
         # Create directories
-        for dir_path in [self.data_dir, self.datasets_dir, self.external_dir]:
-            dir_path.mkdir(exist_ok=True)
+        for directory in [self.data_dir, self.datasets_dir, self.external_dir, self.checkpoints_dir]:
+            directory.mkdir(parents=True, exist_ok=True)
+        
+        # Dataset configurations
+        self.dataset_configs = {
+            'engagement_patterns': {
+                'samples': 5000,
+                'features': ['head_pose', 'eye_gaze', 'facial_expression', 'body_posture'],
+                'labels': ['engaged', 'disengaged', 'neutral']
+            },
+            'facial_expressions': {
+                'samples': 3000,
+                'features': ['facial_landmarks', 'emotion_scores', 'micro_expressions'],
+                'labels': ['happy', 'sad', 'angry', 'surprised', 'neutral', 'confused']
+            },
+            'gesture_recognition': {
+                'samples': 2000,
+                'features': ['hand_landmarks', 'gesture_trajectory', 'hand_orientation'],
+                'labels': ['hand_raised', 'pointing', 'writing', 'fidgeting', 'clapping']
+            },
+            'attention_patterns': {
+                'samples': 4000,
+                'features': ['gaze_direction', 'blink_rate', 'head_movement', 'focus_duration'],
+                'labels': ['focused', 'distracted', 'drowsy', 'alert']
+            }
+        }
     
-    def create_initial_datasets(self):
-        """Create initial synthetic datasets for bootstrapping"""
-        logger.info("Creating initial synthetic datasets...")
+    def create_initial_datasets(self) -> Dict[str, Any]:
+        """Create comprehensive initial datasets for training"""
+        logger.info("Creating initial training datasets...")
         
-        # Create engagement classification dataset
-        engagement_dataset = self._create_engagement_dataset()
-        self._save_dataset(engagement_dataset, "engagement_synthetic.json")
+        created_datasets = {}
         
-        # Create behavioral pattern dataset
-        behavioral_dataset = self._create_behavioral_dataset()
-        self._save_dataset(behavioral_dataset, "behavioral_synthetic.json")
+        for dataset_name, config in self.dataset_configs.items():
+            logger.info(f"Creating {dataset_name} dataset...")
+            dataset = self._create_synthetic_dataset(dataset_name, config)
+            
+            # Save dataset
+            dataset_file = self.datasets_dir / f"{dataset_name}.json"
+            with open(dataset_file, 'w') as f:
+                json.dump(dataset, f, indent=2, default=str)
+            
+            created_datasets[dataset_name] = dataset
+            logger.info(f"Created {dataset_name} with {len(dataset['samples'])} samples")
         
-        # Create emotion classification dataset
-        emotion_dataset = self._create_emotion_dataset()
-        self._save_dataset(emotion_dataset, "emotion_synthetic.json")
+        # Create comprehensive multi-modal dataset
+        multimodal_dataset = self._create_multimodal_dataset(created_datasets)
+        multimodal_file = self.datasets_dir / "multimodal_engagement.json"
+        with open(multimodal_file, 'w') as f:
+            json.dump(multimodal_dataset, f, indent=2, default=str)
         
-        # Create eye tracking dataset
-        eye_tracking_dataset = self._create_eye_tracking_dataset()
-        self._save_dataset(eye_tracking_dataset, "eye_tracking_synthetic.json")
+        created_datasets['multimodal_engagement'] = multimodal_dataset
         
-        logger.info("Initial synthetic datasets created successfully")
+        logger.info(f"Successfully created {len(created_datasets)} initial datasets")
+        return created_datasets
     
-    def _create_engagement_dataset(self, num_samples: int = 1000) -> List[Dict[str, Any]]:
-        """Create synthetic engagement classification dataset"""
-        dataset = []
-        
-        engagement_levels = ['high_engagement', 'medium_engagement', 'low_engagement']
+    def _create_synthetic_dataset(self, dataset_name: str, config: Dict[str, Any]) -> Dict[str, Any]:
+        """Create synthetic dataset based on configuration"""
+        samples = []
+        labels = config['labels']
+        features = config['features']
+        num_samples = config['samples']
         
         for i in range(num_samples):
             # Generate synthetic features
-            engagement_level = random.choice(engagement_levels)
+            feature_vector = {}
             
-            if engagement_level == 'high_engagement':
-                features = {
-                    'head_stability': np.random.normal(0.8, 0.1),
-                    'eye_focus_score': np.random.normal(0.85, 0.1),
-                    'hand_purposefulness': np.random.normal(0.7, 0.15),
-                    'posture_alignment': np.random.normal(0.8, 0.1),
-                    'movement_smoothness': np.random.normal(0.75, 0.1),
-                    'attention_duration': np.random.normal(8.0, 2.0),
-                    'blink_rate': np.random.normal(0.3, 0.05),
-                    'micro_expression_positivity': np.random.normal(0.7, 0.1)
-                }
-            elif engagement_level == 'medium_engagement':
-                features = {
-                    'head_stability': np.random.normal(0.6, 0.15),
-                    'eye_focus_score': np.random.normal(0.65, 0.15),
-                    'hand_purposefulness': np.random.normal(0.5, 0.2),
-                    'posture_alignment': np.random.normal(0.6, 0.15),
-                    'movement_smoothness': np.random.normal(0.55, 0.15),
-                    'attention_duration': np.random.normal(5.0, 2.0),
-                    'blink_rate': np.random.normal(0.35, 0.1),
-                    'micro_expression_positivity': np.random.normal(0.5, 0.15)
-                }
-            else:  # low_engagement
-                features = {
-                    'head_stability': np.random.normal(0.3, 0.15),
-                    'eye_focus_score': np.random.normal(0.35, 0.15),
-                    'hand_purposefulness': np.random.normal(0.25, 0.15),
-                    'posture_alignment': np.random.normal(0.35, 0.15),
-                    'movement_smoothness': np.random.normal(0.3, 0.15),
-                    'attention_duration': np.random.normal(2.0, 1.0),
-                    'blink_rate': np.random.normal(0.5, 0.15),
-                    'micro_expression_positivity': np.random.normal(0.25, 0.15)
-                }
-            
-            # Clip values to valid ranges
-            for key in features:
-                if key == 'attention_duration':
-                    features[key] = max(0.5, min(15.0, features[key]))
+            for feature in features:
+                if 'landmarks' in feature:
+                    # Generate landmark coordinates
+                    feature_vector[feature] = self._generate_landmarks(feature)
+                elif 'pose' in feature or 'gaze' in feature:
+                    # Generate pose/gaze data
+                    feature_vector[feature] = self._generate_pose_data(feature)
+                elif 'expression' in feature or 'emotion' in feature:
+                    # Generate expression data
+                    feature_vector[feature] = self._generate_expression_data(feature)
                 else:
-                    features[key] = max(0.0, min(1.0, features[key]))
+                    # Generate generic numerical features
+                    feature_vector[feature] = self._generate_numerical_features(feature)
             
-            dataset.append({
-                'id': f"engagement_{i}",
-                'features': features,
-                'label': engagement_level,
-                'confidence': 1.0,
+            # Assign label
+            label = random.choice(labels)
+            
+            # Create sample
+            sample = {
+                'id': f"{dataset_name}_{i:06d}",
+                'features': feature_vector,
+                'label': label,
+                'confidence': random.uniform(0.7, 1.0),
+                'timestamp': i * 0.1,  # Simulated timestamp
                 'metadata': {
                     'synthetic': True,
-                    'dataset_type': 'engagement',
-                    'generation_method': 'gaussian_sampling'
-                }
-            })
-        
-        return dataset
-    
-    def _create_behavioral_dataset(self, num_samples: int = 800) -> List[Dict[str, Any]]:
-        """Create synthetic behavioral pattern dataset"""
-        dataset = []
-        
-        movement_types = ['engagement_positive', 'engagement_neutral', 'engagement_negative', 'random_movement']
-        
-        for i in range(num_samples):
-            movement_type = random.choice(movement_types)
-            
-            if movement_type == 'engagement_positive':
-                features = {
-                    'movement_purposefulness': np.random.normal(0.8, 0.1),
-                    'directional_consistency': np.random.normal(0.75, 0.1),
-                    'gesture_alignment': np.random.normal(0.8, 0.1),
-                    'duration_appropriateness': np.random.normal(0.7, 0.1),
-                    'timing_relevance': np.random.normal(0.75, 0.1),
-                    'spatial_relevance': np.random.normal(0.8, 0.1),
-                    'frequency_appropriateness': np.random.normal(0.7, 0.1)
-                }
-            elif movement_type == 'engagement_neutral':
-                features = {
-                    'movement_purposefulness': np.random.normal(0.5, 0.15),
-                    'directional_consistency': np.random.normal(0.5, 0.15),
-                    'gesture_alignment': np.random.normal(0.5, 0.15),
-                    'duration_appropriateness': np.random.normal(0.5, 0.15),
-                    'timing_relevance': np.random.normal(0.5, 0.15),
-                    'spatial_relevance': np.random.normal(0.5, 0.15),
-                    'frequency_appropriateness': np.random.normal(0.5, 0.15)
-                }
-            elif movement_type == 'engagement_negative':
-                features = {
-                    'movement_purposefulness': np.random.normal(0.25, 0.1),
-                    'directional_consistency': np.random.normal(0.3, 0.1),
-                    'gesture_alignment': np.random.normal(0.2, 0.1),
-                    'duration_appropriateness': np.random.normal(0.3, 0.1),
-                    'timing_relevance': np.random.normal(0.25, 0.1),
-                    'spatial_relevance': np.random.normal(0.3, 0.1),
-                    'frequency_appropriateness': np.random.normal(0.25, 0.1)
-                }
-            else:  # random_movement
-                features = {
-                    'movement_purposefulness': np.random.normal(0.15, 0.1),
-                    'directional_consistency': np.random.normal(0.2, 0.1),
-                    'gesture_alignment': np.random.normal(0.1, 0.05),
-                    'duration_appropriateness': np.random.normal(0.2, 0.1),
-                    'timing_relevance': np.random.normal(0.15, 0.1),
-                    'spatial_relevance': np.random.normal(0.2, 0.1),
-                    'frequency_appropriateness': np.random.normal(0.15, 0.1)
-                }
-            
-            # Clip values
-            for key in features:
-                features[key] = max(0.0, min(1.0, features[key]))
-            
-            dataset.append({
-                'id': f"behavioral_{i}",
-                'features': features,
-                'label': movement_type,
-                'confidence': 1.0,
-                'metadata': {
-                    'synthetic': True,
-                    'dataset_type': 'behavioral',
-                    'generation_method': 'pattern_based_sampling'
-                }
-            })
-        
-        return dataset
-    
-    def _create_emotion_dataset(self, num_samples: int = 600) -> List[Dict[str, Any]]:
-        """Create synthetic emotion classification dataset"""
-        dataset = []
-        
-        emotions = ['interest', 'concentration', 'curiosity', 'neutral', 'boredom', 'confusion', 'frustration']
-        
-        for i in range(num_samples):
-            emotion = random.choice(emotions)
-            
-            # Generate facial feature patterns for each emotion
-            if emotion == 'interest':
-                features = {
-                    'eyebrow_raise': np.random.normal(0.7, 0.1),
-                    'eye_openness': np.random.normal(0.8, 0.1),
-                    'mouth_curvature': np.random.normal(0.6, 0.1),
-                    'head_tilt': np.random.normal(0.3, 0.1),
-                    'facial_tension': np.random.normal(0.4, 0.1)
-                }
-            elif emotion == 'concentration':
-                features = {
-                    'eyebrow_raise': np.random.normal(0.5, 0.1),
-                    'eye_openness': np.random.normal(0.6, 0.1),
-                    'mouth_curvature': np.random.normal(0.4, 0.1),
-                    'head_tilt': np.random.normal(0.2, 0.1),
-                    'facial_tension': np.random.normal(0.6, 0.1)
-                }
-            elif emotion == 'boredom':
-                features = {
-                    'eyebrow_raise': np.random.normal(0.2, 0.1),
-                    'eye_openness': np.random.normal(0.3, 0.1),
-                    'mouth_curvature': np.random.normal(0.2, 0.1),
-                    'head_tilt': np.random.normal(0.1, 0.05),
-                    'facial_tension': np.random.normal(0.2, 0.1)
-                }
-            else:  # Other emotions
-                features = {
-                    'eyebrow_raise': np.random.normal(0.5, 0.2),
-                    'eye_openness': np.random.normal(0.5, 0.2),
-                    'mouth_curvature': np.random.normal(0.5, 0.2),
-                    'head_tilt': np.random.normal(0.3, 0.15),
-                    'facial_tension': np.random.normal(0.4, 0.15)
-                }
-            
-            # Clip values
-            for key in features:
-                features[key] = max(0.0, min(1.0, features[key]))
-            
-            dataset.append({
-                'id': f"emotion_{i}",
-                'features': features,
-                'label': emotion,
-                'confidence': 1.0,
-                'metadata': {
-                    'synthetic': True,
-                    'dataset_type': 'emotion',
-                    'generation_method': 'emotion_pattern_modeling'
-                }
-            })
-        
-        return dataset
-    
-    def _create_eye_tracking_dataset(self, num_samples: int = 500) -> List[Dict[str, Any]]:
-        """Create synthetic eye tracking dataset"""
-        dataset = []
-        
-        attention_states = ['focused', 'distracted', 'scanning', 'unfocused']
-        
-        for i in range(num_samples):
-            attention_state = random.choice(attention_states)
-            
-            if attention_state == 'focused':
-                features = {
-                    'gaze_stability': np.random.normal(0.85, 0.1),
-                    'fixation_duration': np.random.normal(2.5, 0.5),
-                    'saccade_frequency': np.random.normal(0.3, 0.1),
-                    'pupil_dilation': np.random.normal(0.6, 0.1),
-                    'blink_rate': np.random.normal(0.3, 0.05)
-                }
-            elif attention_state == 'distracted':
-                features = {
-                    'gaze_stability': np.random.normal(0.3, 0.1),
-                    'fixation_duration': np.random.normal(0.8, 0.3),
-                    'saccade_frequency': np.random.normal(0.8, 0.2),
-                    'pupil_dilation': np.random.normal(0.4, 0.1),
-                    'blink_rate': np.random.normal(0.5, 0.1)
-                }
-            else:  # scanning or unfocused
-                features = {
-                    'gaze_stability': np.random.normal(0.5, 0.2),
-                    'fixation_duration': np.random.normal(1.5, 0.5),
-                    'saccade_frequency': np.random.normal(0.6, 0.2),
-                    'pupil_dilation': np.random.normal(0.5, 0.15),
-                    'blink_rate': np.random.normal(0.4, 0.1)
-                }
-            
-            # Clip values
-            for key in features:
-                if key == 'fixation_duration':
-                    features[key] = max(0.1, min(5.0, features[key]))
-                else:
-                    features[key] = max(0.0, min(1.0, features[key]))
-            
-            dataset.append({
-                'id': f"eye_tracking_{i}",
-                'features': features,
-                'label': attention_state,
-                'confidence': 1.0,
-                'metadata': {
-                    'synthetic': True,
-                    'dataset_type': 'eye_tracking',
-                    'generation_method': 'attention_state_modeling'
-                }
-            })
-        
-        return dataset
-    
-    def _save_dataset(self, dataset: List[Dict[str, Any]], filename: str):
-        """Save dataset to JSON file"""
-        filepath = self.datasets_dir / filename
-        with open(filepath, 'w') as f:
-            json.dump(dataset, f, indent=2)
-        logger.info(f"Saved dataset: {filename} with {len(dataset)} samples")
-    
-    def suggest_external_datasets(self) -> Dict[str, Dict[str, str]]:
-        """Suggest external datasets for training"""
-        suggestions = {
-            "facial_expression_datasets": {
-                "FER2013": {
-                    "description": "Facial Expression Recognition dataset with 7 emotions",
-                    "url": "https://www.kaggle.com/datasets/msambare/fer2013",
-                    "size": "~35,000 images",
-                    "use_case": "Emotion classification training"
-                },
-                "AffectNet": {
-                    "description": "Large-scale facial expression dataset",
-                    "url": "http://mohammadmahoor.com/affectnet/",
-                    "size": "~1M images",
-                    "use_case": "Advanced emotion recognition"
-                },
-                "CK+": {
-                    "description": "Extended Cohn-Kanade dataset for facial expressions",
-                    "url": "http://www.consortium.ri.cmu.edu/ckagree/",
-                    "size": "~600 sequences",
-                    "use_case": "Micro-expression analysis"
-                }
-            },
-            "engagement_datasets": {
-                "DAiSEE": {
-                    "description": "Dataset for Affective States in E-learning Environments",
-                    "url": "https://people.iith.ac.in/vineethnb/resources/daisee/",
-                    "size": "~9,000 video clips",
-                    "use_case": "Student engagement classification"
-                },
-                "EmotiW": {
-                    "description": "Emotion Recognition in the Wild dataset",
-                    "url": "https://sites.google.com/view/emotiw2020",
-                    "size": "Various challenges",
-                    "use_case": "Real-world emotion recognition"
-                }
-            },
-            "pose_and_gesture_datasets": {
-                "COCO": {
-                    "description": "Common Objects in Context with pose annotations",
-                    "url": "https://cocodataset.org/",
-                    "size": "~200K images",
-                    "use_case": "Pose estimation training"
-                },
-                "MPII": {
-                    "description": "Human Pose Dataset",
-                    "url": "http://human-pose.mpi-inf.mpg.de/",
-                    "size": "~25K images",
-                    "use_case": "Human pose estimation"
-                },
-                "Jester": {
-                    "description": "Hand gesture recognition dataset",
-                    "url": "https://developer.qualcomm.com/software/ai-datasets/jester",
-                    "size": "~148K videos",
-                    "use_case": "Hand gesture classification"
-                }
-            },
-            "eye_tracking_datasets": {
-                "GazeCapture": {
-                    "description": "Eye tracking dataset for mobile devices",
-                    "url": "http://gazecapture.csail.mit.edu/",
-                    "size": "~2.5M images",
-                    "use_case": "Gaze estimation training"
-                },
-                "MPIIGaze": {
-                    "description": "Appearance-based gaze estimation dataset",
-                    "url": "https://www.mpi-inf.mpg.de/departments/computer-vision-and-machine-learning/research/gaze-based-human-computer-interaction/appearance-based-gaze-estimation-in-the-wild/",
-                    "size": "~213K images",
-                    "use_case": "Gaze direction estimation"
+                    'dataset': dataset_name,
+                    'quality': 'high'
                 }
             }
+            
+            samples.append(sample)
+        
+        return {
+            'name': dataset_name,
+            'samples': samples,
+            'config': config,
+            'statistics': self._calculate_dataset_statistics(samples),
+            'created_at': pd.Timestamp.now().isoformat()
+        }
+    
+    def _generate_landmarks(self, feature_type: str) -> List[List[float]]:
+        """Generate realistic landmark coordinates"""
+        if 'facial' in feature_type:
+            # 68 facial landmarks
+            landmarks = []
+            for i in range(68):
+                x = random.uniform(0.2, 0.8)
+                y = random.uniform(0.2, 0.8)
+                landmarks.append([x, y, random.uniform(0.8, 1.0)])  # x, y, confidence
+            return landmarks
+        elif 'hand' in feature_type:
+            # 21 hand landmarks
+            landmarks = []
+            for i in range(21):
+                x = random.uniform(0.1, 0.9)
+                y = random.uniform(0.1, 0.9)
+                landmarks.append([x, y, random.uniform(0.7, 1.0)])
+            return landmarks
+        else:
+            # Generic landmarks
+            return [[random.uniform(0, 1), random.uniform(0, 1), random.uniform(0.5, 1.0)] for _ in range(10)]
+    
+    def _generate_pose_data(self, feature_type: str) -> Dict[str, float]:
+        """Generate realistic pose/gaze data"""
+        if 'head_pose' in feature_type:
+            return {
+                'yaw': random.uniform(-30, 30),
+                'pitch': random.uniform(-20, 20),
+                'roll': random.uniform(-15, 15),
+                'confidence': random.uniform(0.8, 1.0)
+            }
+        elif 'gaze' in feature_type:
+            return {
+                'x': random.uniform(-1, 1),
+                'y': random.uniform(-1, 1),
+                'fixation_duration': random.uniform(0.1, 2.0),
+                'confidence': random.uniform(0.7, 1.0)
+            }
+        else:
+            return {
+                'angle': random.uniform(0, 360),
+                'magnitude': random.uniform(0, 1),
+                'confidence': random.uniform(0.6, 1.0)
+            }
+    
+    def _generate_expression_data(self, feature_type: str) -> Dict[str, float]:
+        """Generate realistic expression data"""
+        emotions = ['happy', 'sad', 'angry', 'surprised', 'neutral', 'confused', 'fear']
+        
+        expression_scores = {}
+        for emotion in emotions:
+            expression_scores[emotion] = random.uniform(0, 1)
+        
+        # Normalize scores
+        total = sum(expression_scores.values())
+        if total > 0:
+            expression_scores = {k: v/total for k, v in expression_scores.items()}
+        
+        return expression_scores
+    
+    def _generate_numerical_features(self, feature_type: str) -> List[float]:
+        """Generate numerical feature vectors"""
+        if 'movement' in feature_type:
+            return [random.uniform(0, 1) for _ in range(10)]
+        elif 'attention' in feature_type:
+            return [random.uniform(0, 1) for _ in range(8)]
+        else:
+            return [random.uniform(0, 1) for _ in range(5)]
+    
+    def _create_multimodal_dataset(self, datasets: Dict[str, Any]) -> Dict[str, Any]:
+        """Create comprehensive multimodal dataset"""
+        logger.info("Creating multimodal engagement dataset...")
+        
+        multimodal_samples = []
+        
+        # Combine features from all datasets
+        for i in range(2000):  # Create 2000 multimodal samples
+            combined_features = {}
+            
+            # Sample from each dataset
+            for dataset_name, dataset in datasets.items():
+                if dataset_name != 'multimodal_engagement':
+                    sample = random.choice(dataset['samples'])
+                    combined_features[dataset_name] = sample['features']
+            
+            # Calculate overall engagement score
+            engagement_score = self._calculate_engagement_score(combined_features)
+            
+            # Determine engagement level
+            if engagement_score > 0.7:
+                engagement_level = 'high'
+            elif engagement_score > 0.4:
+                engagement_level = 'medium'
+            else:
+                engagement_level = 'low'
+            
+            multimodal_sample = {
+                'id': f"multimodal_{i:06d}",
+                'features': combined_features,
+                'engagement_score': engagement_score,
+                'engagement_level': engagement_level,
+                'timestamp': i * 0.1,
+                'metadata': {
+                    'synthetic': True,
+                    'multimodal': True,
+                    'quality': 'high'
+                }
+            }
+            
+            multimodal_samples.append(multimodal_sample)
+        
+        return {
+            'name': 'multimodal_engagement',
+            'samples': multimodal_samples,
+            'statistics': self._calculate_dataset_statistics(multimodal_samples),
+            'created_at': pd.Timestamp.now().isoformat()
+        }
+    
+    def _calculate_engagement_score(self, features: Dict[str, Any]) -> float:
+        """Calculate engagement score from multimodal features"""
+        score = 0.5  # Base score
+        
+        # Facial expression contribution
+        if 'facial_expressions' in features:
+            expr_features = features['facial_expressions']
+            if 'emotion_scores' in expr_features:
+                emotions = expr_features['emotion_scores']
+                # Positive emotions increase engagement
+                score += emotions.get('happy', 0) * 0.2
+                score += emotions.get('surprised', 0) * 0.1
+                # Negative emotions decrease engagement
+                score -= emotions.get('sad', 0) * 0.15
+                score -= emotions.get('angry', 0) * 0.1
+        
+        # Attention patterns contribution
+        if 'attention_patterns' in features:
+            attention = features['attention_patterns']
+            if 'focus_duration' in attention:
+                # Longer focus duration increases engagement
+                score += min(attention['focus_duration'][0] * 0.3, 0.3)
+        
+        # Gesture recognition contribution
+        if 'gesture_recognition' in features:
+            gestures = features['gesture_recognition']
+            if 'hand_landmarks' in gestures:
+                # Active gestures increase engagement
+                score += random.uniform(0, 0.2)
+        
+        # Add some noise
+        score += random.uniform(-0.1, 0.1)
+        
+        return max(0.0, min(1.0, score))
+    
+    def _calculate_dataset_statistics(self, samples: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Calculate dataset statistics"""
+        if not samples:
+            return {}
+        
+        stats = {
+            'total_samples': len(samples),
+            'feature_count': len(samples[0]['features']) if samples[0]['features'] else 0,
+            'average_confidence': np.mean([s.get('confidence', 0) for s in samples]),
         }
         
-        return suggestions
-    
-    def download_sample_datasets(self):
-        """Download and prepare sample datasets"""
-        logger.info("Downloading sample datasets...")
+        # Label distribution
+        if 'label' in samples[0]:
+            labels = [s['label'] for s in samples]
+            unique_labels, counts = np.unique(labels, return_counts=True)
+            stats['label_distribution'] = dict(zip(unique_labels, counts.tolist()))
         
-        # This would implement actual dataset downloading
-        # For now, we'll create more comprehensive synthetic datasets
+        # Engagement score distribution (for multimodal)
+        if 'engagement_score' in samples[0]:
+            scores = [s['engagement_score'] for s in samples]
+            stats['engagement_score_stats'] = {
+                'mean': np.mean(scores),
+                'std': np.std(scores),
+                'min': np.min(scores),
+                'max': np.max(scores)
+            }
         
-        # Create larger synthetic datasets
-        large_engagement_dataset = self._create_engagement_dataset(5000)
-        self._save_dataset(large_engagement_dataset, "engagement_large_synthetic.json")
-        
-        large_behavioral_dataset = self._create_behavioral_dataset(4000)
-        self._save_dataset(large_behavioral_dataset, "behavioral_large_synthetic.json")
-        
-        logger.info("Sample datasets prepared")
-    
-    def create_data_augmentation_pipeline(self):
-        """Create data augmentation pipeline for existing datasets"""
-        logger.info("Creating data augmentation pipeline...")
-        
-        # Load existing datasets
-        datasets = []
-        for dataset_file in self.datasets_dir.glob("*.json"):
-            with open(dataset_file, 'r') as f:
-                dataset = json.load(f)
-                datasets.extend(dataset)
-        
-        if not datasets:
-            logger.warning("No datasets found for augmentation")
-            return
-        
-        # Apply augmentation techniques
-        augmented_datasets = []
-        
-        for sample in datasets:
-            # Original sample
-            augmented_datasets.append(sample)
-            
-            # Add noise augmentation
-            noisy_sample = self._add_noise_augmentation(sample)
-            augmented_datasets.append(noisy_sample)
-            
-            # Add scaling augmentation
-            scaled_sample = self._add_scaling_augmentation(sample)
-            augmented_datasets.append(scaled_sample)
-        
-        # Save augmented dataset
-        self._save_dataset(augmented_datasets, "augmented_combined_dataset.json")
-        
-        logger.info(f"Created augmented dataset with {len(augmented_datasets)} samples")
-    
-    def _add_noise_augmentation(self, sample: Dict[str, Any]) -> Dict[str, Any]:
-        """Add noise augmentation to a sample"""
-        augmented_sample = sample.copy()
-        augmented_sample['id'] = f"{sample['id']}_noise"
-        
-        # Add small amount of noise to features
-        features = augmented_sample['features'].copy()
-        for key, value in features.items():
-            if isinstance(value, (int, float)):
-                noise = np.random.normal(0, 0.05)  # 5% noise
-                features[key] = max(0.0, min(1.0, value + noise))
-        
-        augmented_sample['features'] = features
-        augmented_sample['metadata']['augmentation'] = 'noise'
-        
-        return augmented_sample
-    
-    def _add_scaling_augmentation(self, sample: Dict[str, Any]) -> Dict[str, Any]:
-        """Add scaling augmentation to a sample"""
-        augmented_sample = sample.copy()
-        augmented_sample['id'] = f"{sample['id']}_scaled"
-        
-        # Apply random scaling to features
-        features = augmented_sample['features'].copy()
-        scale_factor = np.random.uniform(0.9, 1.1)  # ±10% scaling
-        
-        for key, value in features.items():
-            if isinstance(value, (int, float)):
-                features[key] = max(0.0, min(1.0, value * scale_factor))
-        
-        augmented_sample['features'] = features
-        augmented_sample['metadata']['augmentation'] = 'scaling'
-        
-        return augmented_sample
-
-def main():
-    """Main function to bootstrap datasets"""
-    bootstrap = DatasetBootstrap()
-    
-    # Create initial synthetic datasets
-    bootstrap.create_initial_datasets()
-    
-    # Create augmented datasets
-    bootstrap.create_data_augmentation_pipeline()
-    
-    # Download sample datasets (if needed)
-    bootstrap.download_sample_datasets()
-    
-    # Print dataset suggestions
-    suggestions = bootstrap.suggest_external_datasets()
-    print("\n" + "="*50)
-    print("SUGGESTED EXTERNAL DATASETS")
-    print("="*50)
-    
-    for category, datasets in suggestions.items():
-        print(f"\n{category.upper().replace('_', ' ')}:")
-        for name, info in datasets.items():
-            print(f"  • {name}: {info['description']}")
-            print(f"    URL: {info['url']}")
-            print(f"    Size: {info['size']}")
-            print(f"    Use: {info['use_case']}\n")
+        return stats
 
 if __name__ == "__main__":
-    main()
+    # Create bootstrap system
+    bootstrap = DatasetBootstrap()
+    
+    # Create initial datasets
+    datasets = bootstrap.create_initial_datasets()
+    
+    logger.info("Dataset bootstrap completed successfully!")
+    logger.info(f"Created datasets: {list(datasets.keys())}")
+    
+    # Print statistics
+    for name, dataset in datasets.items():
+        stats = dataset.get('statistics', {})
+        logger.info(f"{name}: {stats.get('total_samples', 0)} samples")

@@ -9,8 +9,8 @@ from typing import Dict, List, Any, Optional
 from collections import deque
 import statistics
 
-from src.utils.base_processor import BaseProcessor
-from src.utils.logger import logger
+from utils.base_processor import BaseProcessor
+from utils.logger import logger
 
 class EngagementScorer(BaseProcessor):
     """Real-time engagement scoring combining all AI modules"""

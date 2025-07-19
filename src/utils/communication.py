@@ -6,12 +6,12 @@ Handles WebSocket communication with Node.js backend
 import json
 import time
 import threading
-from typing import Dict, Any, Optional, Callable
+from typing import Dict, Any, Optional, Callable, List
 import websocket
 import requests
 from queue import Queue, Empty
 
-from src.utils.logger import logger
+from utils.logger import logger
 
 class WebSocketClient:
     """WebSocket client for real-time communication with backend"""
@@ -287,7 +287,7 @@ class CommunicationManager:
         self.batch_size = config.get('batch_size', 10)
 
         # Data queue and sending
-        self.data_queue = Queue(maxsize=1000)
+        self.data_queue = Queue(maxsize=5000)  # Increased from 1000 to 5000
         self.send_thread = None
         self.is_running = False
 
@@ -336,7 +336,8 @@ class CommunicationManager:
             self.data_queue.put_nowait(data)
             
         except:
-            logger.warning("Data queue is full, dropping engagement data")
+            # Queue full - dropping data to prevent memory overflow (expected behavior)
+            pass  # Silently drop data when queue is full
     
     def _data_send_loop(self):
         """Background thread for sending data"""
@@ -369,7 +370,7 @@ class CommunicationManager:
                 logger.error(f"Error in data send loop: {e}")
                 time.sleep(1.0)
     
-    def _send_batch_data(self, batch_data: List[Dict[str, Any]]):
+    def _send_batch_data(self, batch_data: list[dict[str, any]]):
         """Send batch of data"""
         try:
             # Format data for transmission

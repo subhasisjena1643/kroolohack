@@ -17,8 +17,8 @@ from sklearn.cluster import KMeans
 import torch
 import torch.nn as nn
 
-from src.utils.base_processor import BaseProcessor
-from src.utils.logger import logger
+from utils.base_processor import BaseProcessor
+from utils.logger import logger
 
 class AdvancedEyeTracker(BaseProcessor):
     """Industry-grade eye tracking with precision gaze analysis"""

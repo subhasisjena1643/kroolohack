@@ -10,8 +10,8 @@ from typing import Dict, List, Tuple, Any, Optional
 import time
 from collections import deque
 
-from src.utils.base_processor import BaseProcessor
-from src.utils.logger import logger
+from utils.base_processor import BaseProcessor
+from utils.logger import logger
 
 class GestureRecognizer(BaseProcessor):
     """MediaPipe-based hand gesture recognition for participation tracking"""

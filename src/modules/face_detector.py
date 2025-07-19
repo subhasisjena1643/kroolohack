@@ -1,20 +1,162 @@
 """
-Industry-Grade Body Movement Detection Module
-High-precision detection similar to SponsorLytix quality
-Focuses on detailed body movements for engagement analysis
+Face Detection Module
+Basic face detection for engagement analysis
 """
 
 import cv2
 import numpy as np
 from typing import Dict, List, Tuple, Any, Optional
-from ultralytics import YOLO
-import time
 import mediapipe as mp
-from scipy.spatial.distance import euclidean
-from collections import deque
+import time
 
-from src.utils.base_processor import BaseProcessor
-from src.utils.logger import logger
+from utils.base_processor import BaseProcessor
+from utils.logger import logger
+
+class FaceDetector(BaseProcessor):
+    """Basic face detection for engagement analysis"""
+
+    def __init__(self, config: Dict[str, Any]):
+        super().__init__("FaceDetector", config)
+
+        # Initialize MediaPipe Face Detection
+        self.mp_face_detection = mp.solutions.face_detection
+        self.mp_drawing = mp.solutions.drawing_utils
+        self.face_detection = self.mp_face_detection.FaceDetection(
+            model_selection=0, min_detection_confidence=0.5
+        )
+
+        # Face tracking
+        self.face_count = 0
+        self.face_positions = []
+
+    def process_frame(self, frame: np.ndarray) -> Dict[str, Any]:
+        """Process frame for face detection"""
+        try:
+            # Convert BGR to RGB
+            rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+
+            # Process with MediaPipe
+            results = self.face_detection.process(rgb_frame)
+
+            faces = []
+            if results.detections:
+                for detection in results.detections:
+                    # Get bounding box
+                    bbox = detection.location_data.relative_bounding_box
+                    h, w, _ = frame.shape
+
+                    x = int(bbox.xmin * w)
+                    y = int(bbox.ymin * h)
+                    width = int(bbox.width * w)
+                    height = int(bbox.height * h)
+
+                    faces.append({
+                        'bbox': [x, y, width, height],
+                        'confidence': detection.score[0],
+                        'center': [x + width//2, y + height//2]
+                    })
+
+            self.face_count = len(faces)
+            self.face_positions = [face['center'] for face in faces]
+
+            return {
+                'faces': faces,
+                'face_count': self.face_count,
+                'timestamp': time.time()
+            }
+
+        except Exception as e:
+            logger.error(f"Error in face detection: {e}")
+            return {
+                'faces': [],
+                'face_count': 0,
+                'timestamp': time.time()
+            }
+
+    def get_face_count(self) -> int:
+        """Get current face count"""
+        return self.face_count
+
+    def get_face_positions(self) -> List[List[int]]:
+        """Get current face positions"""
+        return self.face_positions
+
+    def initialize(self) -> bool:
+        """Initialize the face detector"""
+        try:
+            logger.info("Face detector initialized successfully")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to initialize face detector: {e}")
+            return False
+
+    def process_data(self, data: Any) -> Dict[str, Any]:
+        """Process data (alias for process_frame)"""
+        if isinstance(data, np.ndarray):
+            return self.process_frame(data)
+        else:
+            logger.error("Invalid data type for face detection")
+            return {'faces': [], 'face_count': 0, 'timestamp': time.time()}
+
+    def cleanup(self):
+        """Cleanup resources"""
+        try:
+            if hasattr(self, 'face_detection'):
+                self.face_detection.close()
+            logger.info("Face detector cleaned up successfully")
+        except Exception as e:
+            logger.error(f"Error during face detector cleanup: {e}")
+
+    def draw_detections(self, frame: np.ndarray, detections: Any) -> np.ndarray:
+        """Draw face detection results on frame"""
+        try:
+            # Handle different detection result formats
+            if isinstance(detections, dict):
+                faces = detections.get('faces', [])
+            elif isinstance(detections, list):
+                faces = detections
+            else:
+                return frame
+
+            for face in faces:
+                # Handle different face data formats
+                if isinstance(face, dict):
+                    bbox = face.get('bbox', face.get('bounding_box', []))
+                    confidence = face.get('confidence', face.get('detection_confidence', 0.0))
+                else:
+                    # Skip if face data format is unexpected
+                    continue
+
+                if len(bbox) >= 4:
+                    # Draw bounding box
+                    x, y, w, h = int(bbox[0]), int(bbox[1]), int(bbox[2]), int(bbox[3])
+
+                    # Ensure coordinates are valid
+                    x = max(0, min(x, frame.shape[1] - 1))
+                    y = max(0, min(y, frame.shape[0] - 1))
+                    w = max(1, min(w, frame.shape[1] - x))
+                    h = max(1, min(h, frame.shape[0] - y))
+
+                    # Draw green rectangle for face
+                    cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
+
+                    # Draw confidence score
+                    label = f"Face: {confidence:.2f}"
+                    label_size = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 2)[0]
+
+                    # Draw background for text
+                    cv2.rectangle(frame, (x, y - label_size[1] - 10),
+                                (x + label_size[0], y), (0, 255, 0), -1)
+
+                    # Draw text
+                    cv2.putText(frame, label, (x, y - 5),
+                              cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 0), 2)
+
+            return frame
+
+        except Exception as e:
+            logger.error(f"Error drawing face detections: {e}")
+            return frame
 
 class AdvancedBodyDetector(BaseProcessor):
     """Industry-grade body movement detection for engagement analysis"""

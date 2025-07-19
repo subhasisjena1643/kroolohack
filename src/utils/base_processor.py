@@ -9,7 +9,7 @@ from typing import Any, Dict, Optional, Callable
 from queue import Queue, Empty
 import numpy as np
 
-from src.utils.logger import logger
+from utils.logger import logger
 
 class BaseProcessor(ABC):
     """Base class for all processing modules"""

@@ -12,8 +12,8 @@ from dataclasses import dataclass
 from enum import Enum
 import json
 
-from src.utils.base_processor import BaseProcessor
-from src.utils.logger import logger
+from utils.base_processor import BaseProcessor
+from utils.logger import logger
 
 class AlertSeverity(Enum):
     """Alert severity levels"""
@@ -115,6 +115,11 @@ class IntelligentAlertSystem(BaseProcessor):
     def process_data(self, engagement_data: Dict[str, Any]) -> Dict[str, Any]:
         """Process engagement data for intelligent alert generation"""
         try:
+            # Safety check for None data
+            if engagement_data is None:
+                logger.warning("Received None engagement data in alert processing")
+                return self._empty_result(error="No engagement data provided")
+
             # Collect evidence
             self._collect_evidence(engagement_data)
             

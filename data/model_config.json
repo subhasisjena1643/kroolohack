@@ -1,0 +1,16 @@
+{
+  "engagement_classifier": {
+    "n_estimators": 100,
+    "max_depth": 15,
+    "class_weight": "balanced"
+  },
+  "movement_classifier": {
+    "n_estimators": 100,
+    "learning_rate": 0.1,
+    "max_depth": 10
+  },
+  "anomaly_detector": {
+    "contamination": 0.1,
+    "n_estimators": 100
+  }
+}

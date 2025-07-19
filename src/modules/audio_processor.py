@@ -3,12 +3,7 @@ Audio Processing Module for Real-time Speech Analysis
 Handles audio capture, speaker diarization, and sentiment analysis
 """
 
-import pyaudio
 import numpy as np
-import librosa
-import speech_recognition as sr
-from textblob import TextBlob
-from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 import threading
 import time
 from typing import Dict, List, Any, Optional
@@ -16,26 +11,65 @@ from collections import deque
 import wave
 import io
 
-from src.utils.base_processor import BaseProcessor
-from src.utils.logger import logger
+from utils.base_processor import BaseProcessor
+from utils.logger import logger
+
+# Check for optional dependencies
+try:
+    import pyaudio
+    PYAUDIO_AVAILABLE = True
+except ImportError:
+    PYAUDIO_AVAILABLE = False
+    print("Warning: PyAudio not available. Audio processing will be disabled.")
+
+try:
+    import librosa
+    LIBROSA_AVAILABLE = True
+except ImportError:
+    LIBROSA_AVAILABLE = False
+    print("Warning: Librosa not available. Advanced audio analysis disabled.")
+
+try:
+    import speech_recognition as sr
+    SPEECH_RECOGNITION_AVAILABLE = True
+except ImportError:
+    SPEECH_RECOGNITION_AVAILABLE = False
+    print("Warning: SpeechRecognition not available. Speech analysis disabled.")
+
+try:
+    from textblob import TextBlob
+    TEXTBLOB_AVAILABLE = True
+except ImportError:
+    TEXTBLOB_AVAILABLE = False
+    print("Warning: TextBlob not available. Text sentiment analysis disabled.")
+
+try:
+    from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
+    VADER_AVAILABLE = True
+except ImportError:
+    VADER_AVAILABLE = False
+    print("Warning: VaderSentiment not available. Sentiment analysis disabled.")
 
 class AudioProcessor(BaseProcessor):
     """Real-time audio processing for engagement analysis"""
     
     def __init__(self, config: Dict[str, Any]):
         super().__init__("AudioProcessor", config)
-        
+
+        # Check if audio processing is available
+        self.audio_available = PYAUDIO_AVAILABLE
+
         # Audio configuration
         self.sample_rate = config.get('sample_rate', 16000)
         self.channels = config.get('channels', 1)
         self.chunk_size = config.get('chunk_size', 1024)
-        self.format = pyaudio.paInt16
-        
+        self.format = pyaudio.paInt16 if PYAUDIO_AVAILABLE else None
+
         # Audio processing components
         self.audio = None
         self.stream = None
-        self.recognizer = sr.Recognizer()
-        self.sentiment_analyzer = SentimentIntensityAnalyzer()
+        self.recognizer = sr.Recognizer() if SPEECH_RECOGNITION_AVAILABLE else None
+        self.sentiment_analyzer = SentimentIntensityAnalyzer() if VADER_AVAILABLE else None
         
         # Audio buffers
         self.audio_buffer = deque(maxlen=self.sample_rate * 10)  # 10 seconds buffer
@@ -63,15 +97,19 @@ class AudioProcessor(BaseProcessor):
     def initialize(self) -> bool:
         """Initialize audio processing components"""
         try:
+            if not self.audio_available:
+                logger.warning("Audio processing not available - PyAudio not installed")
+                return True  # Return True to continue without audio
+
             logger.info("Initializing audio processing...")
-            
+
             # Initialize PyAudio
             self.audio = pyaudio.PyAudio()
-            
+
             # Find default input device
             default_device = self.audio.get_default_input_device_info()
             logger.info(f"Using audio device: {default_device['name']}")
-            
+
             # Setup audio stream
             self.stream = self.audio.open(
                 format=self.format,
@@ -81,10 +119,11 @@ class AudioProcessor(BaseProcessor):
                 frames_per_buffer=self.chunk_size,
                 stream_callback=self._audio_callback
             )
-            
+
             # Configure speech recognizer
-            self.recognizer.energy_threshold = 300
-            self.recognizer.dynamic_energy_threshold = True
+            if self.recognizer:
+                self.recognizer.energy_threshold = 300
+                self.recognizer.dynamic_energy_threshold = True
             self.recognizer.pause_threshold = 0.8
             self.recognizer.phrase_threshold = 0.3
             

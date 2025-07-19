@@ -15,10 +15,20 @@ class VideoConfig:
     frame_width: int = 640
     frame_height: int = 480
     fps: int = 30
-    
+
     # Processing settings
     max_latency_ms: int = 5000  # 5 seconds max latency
     buffer_size: int = 10
+
+    # Performance optimization
+    target_fps: int = 30
+    frame_skip: int = 1  # Process every frame for 30 FPS
+    enable_threading: bool = True
+    max_threads: int = 4
+    enable_gpu: bool = False  # Set to true if CUDA available
+    reduce_precision: bool = True  # Use lower precision for speed
+    enable_caching: bool = True
+    cache_duration: float = 0.1  # Cache results for 100ms
     
     # Face detection
     face_confidence_threshold: float = 0.5

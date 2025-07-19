@@ -9,8 +9,8 @@ import mediapipe as mp
 from typing import Dict, List, Tuple, Any, Optional
 import math
 
-from src.utils.base_processor import BaseProcessor
-from src.utils.logger import logger
+from utils.base_processor import BaseProcessor
+from utils.logger import logger
 
 class HeadPoseEstimator(BaseProcessor):
     """MediaPipe-based head pose estimation for attention detection"""

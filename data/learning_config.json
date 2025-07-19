@@ -1,0 +1,10 @@
+{
+  "learning_rate": 0.01,
+  "batch_size": 32,
+  "validation_split": 0.2,
+  "uncertainty_threshold": 0.7,
+  "confidence_threshold": 0.8,
+  "pattern_learning_enabled": true,
+  "feedback_port": 5001,
+  "feedback_host": "127.0.0.1"
+}
