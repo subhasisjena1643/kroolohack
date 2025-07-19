@@ -55,8 +55,8 @@ class AdvancedBodyDetector(BaseProcessor):
         # Engagement pattern recognition
         self.disengagement_patterns = DisengagementPatternRecognizer()
         
-        # Performance optimization (ENHANCED FOR SPEED)
-        self.frame_skip = config.get('frame_skip', 4)  # Process every 4th frame for speed
+        # Performance optimization (ULTRA SPEED MODE)
+        self.frame_skip = config.get('frame_skip', 8)  # Process every 8th frame for ultra speed
         self.frame_counter = 0
         
     def initialize(self) -> bool:

@@ -91,13 +91,20 @@ class EngagementScorer(BaseProcessor):
             audio_engagement_score = self._calculate_audio_engagement_score(audio_data)
             posture_score = self._calculate_posture_score(pose_data)
             
-            # Calculate overall engagement score
+            # Calculate overall engagement score with real-time responsiveness
             overall_engagement = (
                 attention_score * self.attention_weight +
                 participation_score * self.participation_weight +
                 audio_engagement_score * self.audio_engagement_weight +
                 posture_score * self.posture_weight
             )
+
+            # Apply smoothing but keep responsiveness for real-time updates
+            if hasattr(self, 'previous_engagement'):
+                # Use lighter smoothing for more responsive updates
+                overall_engagement = 0.3 * self.previous_engagement + 0.7 * overall_engagement
+
+            self.previous_engagement = overall_engagement
             
             # Determine engagement level
             engagement_level = self._determine_engagement_level(overall_engagement)
@@ -138,7 +145,16 @@ class EngagementScorer(BaseProcessor):
             # Update current state
             self.current_engagement_score = overall_engagement
             self.current_engagement_level = engagement_level
-            
+
+            # Debug logging for all scores every few seconds
+            current_time = time.time()
+            if not hasattr(self, '_last_score_debug_time') or current_time - self._last_score_debug_time > 3.0:
+                logger.info(f"📊 ALL SCORES: Overall={overall_engagement:.3f}, "
+                           f"Attention={attention_score:.3f}, Participation={participation_score:.3f}, "
+                           f"Audio={audio_engagement_score:.3f}, Posture={posture_score:.3f}, "
+                           f"Level={engagement_level}")
+                self._last_score_debug_time = current_time
+
             return result
             
         except Exception as e:
@@ -169,21 +185,28 @@ class EngagementScorer(BaseProcessor):
             return 0.0
     
     def _calculate_participation_score(self, gesture_data: Dict[str, Any]) -> float:
-        """Calculate participation score from gesture recognition"""
+        """Calculate participation score from gesture recognition with real-time responsiveness"""
         try:
-            # Get participation score from gesture module
-            participation_score = gesture_data.get('participation_score', 0.0)
-            
-            # Get recent participation events
+            # Get base participation score from gesture module
+            base_participation_score = gesture_data.get('participation_score', 0.0)
+
+            # Get recent participation events for immediate boost
             recent_events = gesture_data.get('participation_events', [])
-            
-            # Boost score based on recent activity
+
+            # Calculate immediate activity boost (more responsive)
+            immediate_activity = 0.0
             if recent_events:
-                recent_boost = min(0.3, len(recent_events) * 0.1)
-                participation_score += recent_boost
-            
-            return min(1.0, participation_score)
-            
+                # Count very recent events (last 2 seconds) for immediate response
+                current_time = time.time()
+                very_recent_events = [e for e in recent_events
+                                    if current_time - e.get('timestamp', 0) < 2.0]
+                immediate_activity = min(0.5, len(very_recent_events) * 0.2)
+
+            # Combine base score with immediate activity
+            final_score = min(1.0, base_participation_score + immediate_activity)
+
+            return final_score
+
         except Exception as e:
             logger.error(f"Error calculating participation score: {e}")
             return 0.0

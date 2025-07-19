@@ -45,6 +45,7 @@ class GestureRecognizer(BaseProcessor):
         # Participation scoring
         self.participation_score = 0.0
         self.gesture_counts = {gesture: 0 for gesture in self.gesture_definitions.keys()}
+        self.current_gesture_detected = False  # Track real-time gesture detection
     
     def initialize(self) -> bool:
         """Initialize MediaPipe hands detection"""
@@ -290,10 +291,14 @@ class GestureRecognizer(BaseProcessor):
             'gestures': detected_gestures
         })
         
+        # Track if any gestures are currently detected
+        any_gestures_detected = False
+
         # Update participation events
         for hand_id, gestures in detected_gestures.items():
             for gesture_name, gesture_data in gestures.items():
                 if gesture_data['detected'] and gesture_data['confidence'] > 0.7:
+                    any_gestures_detected = True
                     # Check if this is a new gesture event
                     if self._is_new_gesture_event(gesture_name, current_time):
                         self.participation_events.append({
@@ -302,11 +307,23 @@ class GestureRecognizer(BaseProcessor):
                             'hand': hand_id,
                             'confidence': gesture_data['confidence']
                         })
-                        
+
                         # Update gesture counts
                         self.gesture_counts[gesture_name] += 1
-                        
+
                         logger.info(f"Participation gesture detected: {gesture_name} ({gesture_data['confidence']:.2f})")
+
+        # Store current gesture detection state for participation calculation
+        self.current_gesture_detected = any_gestures_detected
+
+        # Debug logging for gesture detection
+        if hasattr(self, '_last_gesture_log_time'):
+            if current_time - self._last_gesture_log_time > 2.0:  # Log every 2 seconds
+                logger.debug(f"Gesture detection status: {any_gestures_detected}, "
+                           f"Recent events: {len(self.participation_events)}")
+                self._last_gesture_log_time = current_time
+        else:
+            self._last_gesture_log_time = current_time
         
         # Clean old participation events (keep last 5 minutes)
         cutoff_time = current_time - 300.0
@@ -351,27 +368,71 @@ class GestureRecognizer(BaseProcessor):
         return stable_gestures
     
     def _calculate_participation_metrics(self) -> Dict[str, Any]:
-        """Calculate participation metrics"""
+        """Calculate participation metrics with real-time responsiveness"""
         current_time = time.time()
-        
-        # Recent participation (last 2 minutes)
-        recent_events = [e for e in self.participation_events 
-                        if current_time - e['timestamp'] < 120.0]
-        
-        # Calculate participation score
-        participation_gestures = ['hand_raised', 'pointing', 'thumbs_up']
-        recent_participation = [e for e in recent_events 
+
+        # IMMEDIATE activity detection (last 5 seconds for real-time response)
+        immediate_events = [e for e in self.participation_events
+                           if current_time - e['timestamp'] < 5.0]
+
+        # RECENT activity (last 30 seconds for context)
+        recent_events = [e for e in self.participation_events
+                        if current_time - e['timestamp'] < 30.0]
+
+        # Calculate participation score based on IMMEDIATE activity
+        participation_gestures = ['hand_raised', 'pointing', 'thumbs_up', 'open_palm', 'fist']
+
+        # Count immediate participation events (last 5 seconds)
+        immediate_participation = [e for e in immediate_events
+                                 if e['gesture'] in participation_gestures]
+
+        # Count recent participation events (last 30 seconds)
+        recent_participation = [e for e in recent_events
                               if e['gesture'] in participation_gestures]
-        
-        # Update participation score (exponential moving average)
-        current_participation = len(recent_participation) / 10.0  # Normalize
-        self.participation_score = 0.7 * self.participation_score + 0.3 * current_participation
-        self.participation_score = min(1.0, self.participation_score)
+
+        # Calculate current activity level (0.0 to 1.0)
+        immediate_activity = min(1.0, len(immediate_participation) / 2.0)  # 2+ gestures in 5 sec = full activity
+        recent_activity = min(1.0, len(recent_participation) / 5.0)  # 5+ gestures in 30 sec = sustained activity
+
+        # Real-time participation score calculation with immediate gesture detection
+        current_gesture_active = getattr(self, 'current_gesture_detected', False)
+
+        # Debug logging to track participation score changes
+        old_score = self.participation_score
+
+        # Fixed participation score algorithm with proper decay
+        if immediate_activity > 0:
+            # Boost score when there's immediate activity
+            target_score = min(1.0, immediate_activity)
+            self.participation_score = 0.2 * self.participation_score + 0.8 * target_score
+        elif recent_activity > 0:
+            # Moderate boost from recent activity
+            target_score = min(0.7, recent_activity)
+            self.participation_score = 0.4 * self.participation_score + 0.6 * target_score
+        else:
+            # AGGRESSIVE DECAY when no activity - this ensures score decreases
+            self.participation_score = self.participation_score * 0.75  # 25% decay per frame
+
+        # Ensure bounds
+        self.participation_score = min(1.0, max(0.0, self.participation_score))
+
+        # Debug logging when score changes significantly or periodically
+        current_time = time.time()
+        if abs(self.participation_score - old_score) > 0.01 or not hasattr(self, '_last_score_log_time') or current_time - self._last_score_log_time > 5.0:
+            logger.info(f"🎯 PARTICIPATION SCORE: {old_score:.3f} -> {self.participation_score:.3f} "
+                       f"(immediate: {immediate_activity:.2f}, recent: {recent_activity:.2f}, "
+                       f"current_gesture: {current_gesture_active}, immediate_events: {len(immediate_events)}, "
+                       f"recent_events: {len(recent_events)})")
+            self._last_score_log_time = current_time
         
         return {
+            'immediate_events_count': len(immediate_events),
             'recent_events_count': len(recent_events),
-            'participation_events_count': len(recent_participation),
-            'participation_rate': len(recent_participation) / 120.0,  # Events per second
+            'immediate_participation_count': len(immediate_participation),
+            'recent_participation_count': len(recent_participation),
+            'immediate_activity_level': immediate_activity,
+            'recent_activity_level': recent_activity,
+            'participation_rate': len(recent_participation) / 30.0,  # Events per 30 seconds
             'most_common_gesture': self._get_most_common_gesture(),
             'engagement_level': self._get_engagement_level()
         }

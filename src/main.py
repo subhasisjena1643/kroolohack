@@ -439,35 +439,64 @@ class EngagementAnalyzer:
                 results['face_detection'] = {'faces': [], 'face_count': 0}
                 self.processing_times['face_detection'] = time.time() - start_time
 
-            # Advanced Body Detection (Industry-grade precision)
-            start_time = time.time()
-            advanced_body_result = self.advanced_body_detector.process_data(frame)
-            if advanced_body_result:
-                results['advanced_body_detection'] = advanced_body_result
-                self.processing_times['advanced_body_detection'] = time.time() - start_time
+            # OPTIMIZATION: Advanced Body Detection (Skip every 3rd frame for speed)
+            if self.optimization_frame_counter % 3 == 0:  # Process every 3rd frame
+                start_time = time.time()
+                advanced_body_result = self.advanced_body_detector.process_data(frame)
+                if advanced_body_result:
+                    results['advanced_body_detection'] = advanced_body_result
+                    self.processing_times['advanced_body_detection'] = time.time() - start_time
+                    self.cached_body_result = advanced_body_result
+            else:
+                # Use cached result for skipped frames
+                if hasattr(self, 'cached_body_result'):
+                    results['advanced_body_detection'] = self.cached_body_result
+                    self.processing_times['advanced_body_detection'] = 0.001  # Minimal time for cached result
 
-            # Advanced Eye Tracking
-            start_time = time.time()
-            eye_tracking_result = self.advanced_eye_tracker.process_data(frame)
-            if eye_tracking_result:
-                results['advanced_eye_tracking'] = eye_tracking_result
-                self.processing_times['advanced_eye_tracking'] = time.time() - start_time
+            # OPTIMIZATION: Advanced Eye Tracking (Skip every 4th frame for speed)
+            if self.optimization_frame_counter % 4 == 0:  # Process every 4th frame
+                start_time = time.time()
+                eye_tracking_result = self.advanced_eye_tracker.process_data(frame)
+                if eye_tracking_result:
+                    results['advanced_eye_tracking'] = eye_tracking_result
+                    self.processing_times['advanced_eye_tracking'] = time.time() - start_time
+                    self.cached_eye_result = eye_tracking_result
+            else:
+                # Use cached result for skipped frames
+                if hasattr(self, 'cached_eye_result'):
+                    results['advanced_eye_tracking'] = self.cached_eye_result
+                    self.processing_times['advanced_eye_tracking'] = 0.001  # Minimal time for cached result
 
-            # Micro-Expression Analysis
-            start_time = time.time()
-            micro_expression_result = self.micro_expression_analyzer.process_data(frame)
-            if micro_expression_result:
-                results['micro_expression_analysis'] = micro_expression_result
-                self.processing_times['micro_expression_analysis'] = time.time() - start_time
+            # OPTIMIZATION: Micro-Expression Analysis (Skip every other frame for speed)
+            self.optimization_frame_counter += 1
+            if self.optimization_frame_counter % 2 == 0:  # Process every 2nd frame
+                start_time = time.time()
+                micro_expression_result = self.micro_expression_analyzer.process_data(frame)
+                if micro_expression_result:
+                    results['micro_expression_analysis'] = micro_expression_result
+                    self.processing_times['micro_expression_analysis'] = time.time() - start_time
+                    self.cached_micro_expression_result = micro_expression_result
+            else:
+                # Use cached result for skipped frames
+                if hasattr(self, 'cached_micro_expression_result'):
+                    results['micro_expression_analysis'] = self.cached_micro_expression_result
+                    self.processing_times['micro_expression_analysis'] = 0.001  # Minimal time for cached result
 
-            # Head Pose Estimation (ultra-fast)
-            start_time = time.time()
-            pose_input = {'frame': frame, 'faces': face_result.get('faces', []) if face_result else []}
-            self.pose_estimator.add_data(pose_input)
-            pose_result = self.pose_estimator.get_result(timeout=0.005)  # Ultra-fast timeout
-            if pose_result:
-                results['pose_estimation'] = pose_result
-                self.processing_times['pose_estimation'] = time.time() - start_time
+            # OPTIMIZATION: Head Pose Estimation (Skip every 6th frame for speed)
+            if self.optimization_frame_counter % 6 == 0:  # Process every 6th frame
+                start_time = time.time()
+                pose_input = {'frame': frame, 'faces': face_result.get('faces', []) if face_result else []}
+                self.pose_estimator.add_data(pose_input)
+                pose_result = self.pose_estimator.get_result(timeout=0.005)  # Ultra-fast timeout
+                if pose_result:
+                    results['pose_estimation'] = pose_result
+                    self.processing_times['pose_estimation'] = time.time() - start_time
+                    self.cached_pose_result = pose_result
+            else:
+                # Use cached result for skipped frames
+                if hasattr(self, 'cached_pose_result'):
+                    results['pose_estimation'] = self.cached_pose_result
+                    self.processing_times['pose_estimation'] = 0.001  # Minimal time for cached result
 
             # Gesture Recognition (ultra-fast)
             start_time = time.time()
@@ -484,8 +513,8 @@ class EngagementAnalyzer:
                 results['audio_processing'] = audio_result
                 self.processing_times['audio_processing'] = time.time() - start_time
 
-            # Intelligent Pattern Analysis (combine movement data)
-            if results:
+            # OPTIMIZATION: Intelligent Pattern Analysis (Skip every 5th frame for speed)
+            if results and self.optimization_frame_counter % 5 == 0:  # Process every 5th frame
                 start_time = time.time()
                 movement_data = {
                     'advanced_body_detection': results.get('advanced_body_detection', {}),
@@ -498,14 +527,33 @@ class EngagementAnalyzer:
                 if pattern_result:
                     results['intelligent_pattern_analysis'] = pattern_result
                     self.processing_times['intelligent_pattern_analysis'] = time.time() - start_time
+                    self.cached_pattern_result = pattern_result
+            elif hasattr(self, 'cached_pattern_result'):
+                # Use cached result for skipped frames
+                results['intelligent_pattern_analysis'] = self.cached_pattern_result
+                self.processing_times['intelligent_pattern_analysis'] = 0.001  # Minimal time for cached result
 
-            # Behavioral Classification
-            if results:
+            # Initialize movement_data for other components that might need it
+            movement_data = {
+                'advanced_body_detection': results.get('advanced_body_detection', {}),
+                'advanced_eye_tracking': results.get('advanced_eye_tracking', {}),
+                'micro_expression_analysis': results.get('micro_expression_analysis', {}),
+                'pose_estimation': results.get('pose_estimation', {}),
+                'gesture_recognition': results.get('gesture_recognition', {})
+            }
+
+            # OPTIMIZATION: Behavioral Classification (Skip every 10th frame for speed)
+            if results and self.optimization_frame_counter % 10 == 0:  # Process every 10th frame
                 start_time = time.time()
                 behavioral_result = self.behavioral_classifier.process_data(movement_data)
                 if behavioral_result:
                     results['behavioral_classification'] = behavioral_result
                     self.processing_times['behavioral_classification'] = time.time() - start_time
+                    self.cached_behavioral_result = behavioral_result
+            elif hasattr(self, 'cached_behavioral_result'):
+                # Use cached result for skipped frames
+                results['behavioral_classification'] = self.cached_behavioral_result
+                self.processing_times['behavioral_classification'] = 0.001  # Minimal time for cached result
 
             # Engagement Scoring (ultra-fast)
             if results:

@@ -117,7 +117,11 @@ class IntelligentAlertSystem(BaseProcessor):
         try:
             # Safety check for None data
             if engagement_data is None:
-                logger.warning("Received None engagement data in alert processing")
+                # Only log warning occasionally to avoid spam
+                current_time = time.time()
+                if not hasattr(self, '_last_none_warning_time') or current_time - self._last_none_warning_time > 10.0:
+                    logger.warning("Received None engagement data in alert processing (normal during startup/processing delays)")
+                    self._last_none_warning_time = current_time
                 return self._empty_result(error="No engagement data provided")
 
             # Collect evidence
@@ -430,7 +434,7 @@ class IntelligentAlertSystem(BaseProcessor):
             description=self._generate_alert_description(decision),
             evidence=decision['evidence'],
             recommended_action=decision['recommended_action'],
-            expires_at=current_time + 300.0,  # 5 minutes
+            expires_at=current_time + 10.0,  # 10 seconds auto-disappear
             metadata={
                 'pattern': decision['pattern'],
                 'priority_score': decision['priority_score']
