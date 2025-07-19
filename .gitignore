@@ -1,0 +1,206 @@
+# Virtual Environments
+venv/
+env/
+.env
+.venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Docker Files and Containers
+Dockerfile.prod
+docker-compose.override.yml
+.dockerignore.local
+docker-data/
+.docker/
+
+# Docker Volumes and Data
+data/models/*.pkl
+data/models/*.pth
+data/models/*.h5
+data/datasets/*.json
+data/feedback/*.db
+data/external/
+logs/*.log
+logs/
+
+# Python Cache and Bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# IDE and Editor Files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.spyderproject
+.spyproject
+.rope_project
+
+# OS Generated Files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Environment Variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Coverage Reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+cover/
+
+# Flask
+instance/
+.webassets-cache
+
+# Large Model Files
+*.h5
+*.pb
+*.onnx
+models/
+weights/
+checkpoints/
+
+# Temporary Files
+tmp/
+temp/
+*.tmp
+*.bak
+*.swp
+*~.nib
+
+# Package Files
+*.tar.gz
+*.zip
+*.rar
+*.7z
+
+# Windows Specific
+*.exe
+*.msi
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Mac Specific
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
+
+# Linux Specific
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*
+
+# Application Specific - Generated Files
+activate.bat
+activate.sh
+activate_venv.bat
+activate_venv.ps1
+test_packages.py
+check_requirements.py
+
+# Docker Image Files
+*.tar
+engagement-analyzer*.tar.gz
+engagement-analyzer-complete.tar.gz
+
+# Generated Documentation
+DOCKER_README.txt
+DOCKER_README.md
+
+# Data and Model Files (keep structure, ignore content)
+data/models/
+data/datasets/
+data/feedback/
+data/external/
+
+# Log Files
+logs/
+*.log
+
+# Database Files
+*.db
+*.sqlite
+*.sqlite3
+
+# Backup Files
+*.backup
+*.old
+
+# SSL Certificates
+*.pem
+*.key
+*.crt
+
+# Compiled Python
+*.pyc
+*.pyo
+*.pyd
+
+# Unit test / coverage reports
+.coverage
+.pytest_cache/
+.tox/
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Pyre type checker
+.pyre/
+
+# pytype static type analyzer
+.pytype/
+
+# Cython debug symbols
+cython_debug/

@@ -1,0 +1,87 @@
+# Docker ignore file for Classroom Engagement Analyzer
+
+# Virtual environments
+venv/
+env/
+.env
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Git
+.git/
+.gitignore
+
+# Logs (will be mounted as volume)
+logs/*.log
+
+# Data directories (will be mounted as volumes)
+data/models/*.pkl
+data/models/*.pth
+data/datasets/*.json
+data/feedback/*.db
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Documentation
+*.md
+docs/
+
+# Test files
+tests/
+*_test.py
+test_*.py
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+
+# Jupyter notebooks
+*.ipynb
+.ipynb_checkpoints/
+
+# Coverage reports
+htmlcov/
+.coverage
+.coverage.*
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Package files
+*.tar.gz
+*.zip
+
+# Windows specific
+*.exe
+*.msi
+
+# Large model files (download at runtime)
+*.h5
+*.pb
+*.onnx
+models/
+weights/
