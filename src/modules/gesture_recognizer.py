@@ -24,9 +24,9 @@ class GestureRecognizer(BaseProcessor):
         self.mp_drawing = mp.solutions.drawing_utils
         self.hands = None
         
-        # Gesture recognition parameters
-        self.confidence_threshold = config.get('gesture_confidence_threshold', 0.7)
-        self.buffer_frames = config.get('gesture_buffer_frames', 10)
+        # Gesture recognition parameters - OPTIMIZED FOR CLASSROOM DISTANCE
+        self.confidence_threshold = config.get('gesture_confidence_threshold', 0.5)  # LOWERED: Better for distant gestures
+        self.buffer_frames = config.get('gesture_buffer_frames', 15)  # INCREASED: More frames for distant recognition
         
         # Gesture tracking
         self.gesture_history = deque(maxlen=self.buffer_frames)
@@ -54,7 +54,7 @@ class GestureRecognizer(BaseProcessor):
             
             self.hands = self.mp_hands.Hands(
                 static_image_mode=False,
-                max_num_hands=10,  # Classroom setting
+                max_num_hands=20,  # INCREASED: More hands in classroom
                 min_detection_confidence=self.confidence_threshold,
                 min_tracking_confidence=self.confidence_threshold
             )
@@ -184,7 +184,7 @@ class GestureRecognizer(BaseProcessor):
         for gesture_name, detector_func in self.gesture_definitions.items():
             try:
                 confidence = detector_func(landmarks, hand_data)
-                if confidence > 0.5:  # Threshold for gesture detection
+                if confidence > 0.3:  # LOWERED: Better detection for distant gestures
                     gestures[gesture_name] = {
                         'confidence': confidence,
                         'detected': True
@@ -264,9 +264,9 @@ class GestureRecognizer(BaseProcessor):
             if landmarks[tip_idx][1] < landmarks[pip_idx][1]:  # Finger extended
                 extended_count += 1
         
-        # Open palm if most fingers are extended
+        # Open palm if most fingers are extended - LOWERED for distant detection
         confidence = extended_count / 5.0
-        return confidence if confidence > 0.6 else 0.0
+        return confidence if confidence > 0.4 else 0.0
     
     def _detect_fist(self, landmarks: np.ndarray, hand_data: Dict[str, Any]) -> float:
         """Detect fist gesture"""
@@ -278,9 +278,9 @@ class GestureRecognizer(BaseProcessor):
             if landmarks[tip_idx][1] > landmarks[pip_idx][1]:  # Finger curled
                 curled_count += 1
         
-        # Fist if most fingers are curled
+        # Fist if most fingers are curled - LOWERED for distant detection
         confidence = curled_count / 4.0
-        return confidence if confidence > 0.7 else 0.0
+        return confidence if confidence > 0.5 else 0.0
     
     def _update_gesture_history(self, detected_gestures: Dict[str, Any]):
         """Update gesture history for stability analysis"""

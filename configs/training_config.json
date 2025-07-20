@@ -1,0 +1,187 @@
+{
+  "training_name": "advanced_human_detection_v1",
+  "description": "State-of-the-art human detection training with external datasets",
+  
+  "model_configuration": {
+    "model_size": "yolov8s",
+    "input_size": 640,
+    "num_classes": 1,
+    "class_names": ["person"],
+    "pretrained": true,
+    "freeze_backbone": false
+  },
+  
+  "training_parameters": {
+    "epochs": 150,
+    "batch_size": 32,
+    "learning_rate": 0.001,
+    "weight_decay": 0.0005,
+    "momentum": 0.937,
+    "warmup_epochs": 5,
+    "warmup_momentum": 0.8,
+    "warmup_bias_lr": 0.1,
+    "optimizer": "AdamW",
+    "scheduler": "cosine",
+    "patience": 50,
+    "early_stopping": true
+  },
+  
+  "data_augmentation": {
+    "use_augmentation": true,
+    "use_mixup": true,
+    "use_mosaic": true,
+    "use_copy_paste": true,
+    "mixup_probability": 0.15,
+    "mosaic_probability": 1.0,
+    "copy_paste_probability": 0.3,
+    
+    "geometric_augmentation": {
+      "horizontal_flip": 0.5,
+      "vertical_flip": 0.1,
+      "rotation_degrees": 15.0,
+      "translation": 0.1,
+      "scale_range": [0.5, 1.5],
+      "shear_degrees": 0.0,
+      "perspective": 0.0
+    },
+    
+    "photometric_augmentation": {
+      "hsv_hue": 0.015,
+      "hsv_saturation": 0.7,
+      "hsv_value": 0.4,
+      "brightness_contrast": 0.2,
+      "gamma_range": [0.8, 1.2],
+      "gaussian_noise": 0.02,
+      "gaussian_blur": 0.1,
+      "motion_blur": 0.1
+    },
+    
+    "advanced_augmentation": {
+      "random_erasing": 0.2,
+      "cutout": 0.3,
+      "grid_mask": 0.2,
+      "random_crop": 0.1,
+      "elastic_transform": 0.1
+    }
+  },
+  
+  "loss_configuration": {
+    "use_focal_loss": true,
+    "focal_loss_gamma": 1.5,
+    "focal_loss_alpha": 0.25,
+    "box_loss_gain": 7.5,
+    "class_loss_gain": 0.5,
+    "dfl_loss_gain": 1.5,
+    "label_smoothing": 0.0,
+    "positive_weight": 1.0
+  },
+  
+  "optimization_techniques": {
+    "use_amp": true,
+    "use_ema": true,
+    "ema_decay": 0.9999,
+    "gradient_clipping": 10.0,
+    "multi_scale_training": true,
+    "scale_range": [0.5, 1.5],
+    "accumulate_gradients": 1
+  },
+  
+  "validation_configuration": {
+    "validation_interval": 1,
+    "save_best_only": true,
+    "save_period": 10,
+    "confidence_threshold": 0.001,
+    "iou_threshold": 0.6,
+    "max_detections": 300,
+    "plot_validation": true
+  },
+  
+  "dataset_configuration": {
+    "primary_datasets": ["coco_person"],
+    "secondary_datasets": ["crowdhuman", "citypersons"],
+    "dataset_mixing_ratio": [0.7, 0.2, 0.1],
+    "train_val_split": 0.8,
+    "use_stratified_split": true,
+    "minimum_samples_per_class": 100
+  },
+  
+  "hardware_optimization": {
+    "use_cuda": true,
+    "mixed_precision": true,
+    "dataloader_workers": 8,
+    "pin_memory": true,
+    "persistent_workers": true,
+    "prefetch_factor": 2
+  },
+  
+  "logging_and_monitoring": {
+    "use_wandb": true,
+    "wandb_project": "human-detection-sota",
+    "log_interval": 10,
+    "save_predictions": true,
+    "save_confusion_matrix": true,
+    "save_pr_curve": true,
+    "save_training_plots": true,
+    "verbose": true
+  },
+  
+  "checkpoint_configuration": {
+    "checkpoint_dir": "checkpoints/detection_training",
+    "save_last": true,
+    "save_best": true,
+    "resume_training": false,
+    "resume_checkpoint": null,
+    "auto_save_interval": 10
+  },
+  
+  "export_configuration": {
+    "export_formats": ["onnx", "torchscript"],
+    "optimize_for_inference": true,
+    "quantization": false,
+    "pruning": false,
+    "knowledge_distillation": false
+  },
+  
+  "evaluation_metrics": {
+    "primary_metric": "mAP50",
+    "secondary_metrics": ["mAP50-95", "precision", "recall", "f1_score"],
+    "confidence_thresholds": [0.1, 0.25, 0.5, 0.75],
+    "iou_thresholds": [0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95],
+    "calculate_per_class_metrics": true
+  },
+  
+  "advanced_techniques": {
+    "knowledge_distillation": {
+      "enabled": false,
+      "teacher_model": "yolov8x",
+      "temperature": 4.0,
+      "alpha": 0.7
+    },
+    
+    "self_training": {
+      "enabled": false,
+      "confidence_threshold": 0.9,
+      "pseudo_label_ratio": 0.1
+    },
+    
+    "test_time_augmentation": {
+      "enabled": true,
+      "scales": [0.8, 1.0, 1.2],
+      "flips": [false, true]
+    },
+    
+    "model_ensemble": {
+      "enabled": false,
+      "models": ["yolov8s", "yolov8m"],
+      "weights": [0.6, 0.4]
+    }
+  },
+  
+  "quality_assurance": {
+    "data_validation": true,
+    "annotation_quality_check": true,
+    "duplicate_detection": true,
+    "class_balance_analysis": true,
+    "outlier_detection": true
+  }
+}

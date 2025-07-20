@@ -14,7 +14,6 @@ docker-compose.override.yml
 docker-data/
 .docker/
 
-# Docker Volumes and Data
 data/models/*.pkl
 data/models/*.pth
 data/models/*.h5

@@ -32,9 +32,9 @@ class MicroExpressionAnalyzer(BaseProcessor):
         self.face_detection = None
         self.face_mesh = None
         
-        # Analysis parameters
-        self.min_detection_confidence = config.get('min_detection_confidence', 0.8)
-        self.min_tracking_confidence = config.get('min_tracking_confidence', 0.7)
+        # Analysis parameters - OPTIMIZED FOR CLASSROOM DISTANCE
+        self.min_detection_confidence = config.get('min_detection_confidence', 0.4)  # LOWERED: Better for distant faces
+        self.min_tracking_confidence = config.get('min_tracking_confidence', 0.3)  # LOWERED: Better tracking for distant faces
         
         # Facial landmark groups for analysis
         self.facial_regions = {
@@ -79,8 +79,8 @@ class MicroExpressionAnalyzer(BaseProcessor):
             )
             
             self.face_mesh = self.mp_face_mesh.FaceMesh(
-                max_num_faces=1,
-                refine_landmarks=True,
+                max_num_faces=5,  # INCREASED: Multiple faces in classroom
+                refine_landmarks=False,  # DISABLED: Faster processing for distant faces
                 min_detection_confidence=self.min_detection_confidence,
                 min_tracking_confidence=self.min_tracking_confidence
             )

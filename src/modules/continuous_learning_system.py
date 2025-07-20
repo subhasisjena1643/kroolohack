@@ -15,6 +15,8 @@ from dataclasses import dataclass, asdict
 from enum import Enum
 import sqlite3
 import pickle
+import os
+import shutil
 from pathlib import Path
 
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
@@ -91,6 +93,13 @@ class ContinuousLearningSystem(BaseProcessor):
         self.model_validator = ModelValidator()
         self.dataset_manager = DatasetManager(self.datasets_dir)
         self.performance_tracker = PerformanceTracker()
+
+        # CHECKPOINT PERSISTENCE SYSTEM
+        self.checkpoint_dir = os.path.join(os.path.dirname(__file__), '..', '..', 'checkpoints', 'continuous_learning')
+        os.makedirs(self.checkpoint_dir, exist_ok=True)
+        self.checkpoint_file = os.path.join(self.checkpoint_dir, 'learning_system_checkpoint.pkl')
+        self.auto_save_interval = 50  # Save checkpoint every 50 learning instances
+        self.last_checkpoint_save = 0
         
         # Learning data
         self.learning_instances = deque(maxlen=10000)
@@ -107,19 +116,86 @@ class ContinuousLearningSystem(BaseProcessor):
         
         # Session tracking
         self.current_session_id = f"session_{int(time.time())}"
-        
+
+    def _load_learning_checkpoint(self):
+        """Load learning checkpoint to continue from last session"""
+        try:
+            if os.path.exists(self.checkpoint_file):
+                with open(self.checkpoint_file, 'rb') as f:
+                    checkpoint_data = pickle.load(f)
+
+                # Restore learning parameters
+                self.learning_rate = checkpoint_data.get('learning_rate', self.learning_rate)
+                self.batch_size = checkpoint_data.get('batch_size', self.batch_size)
+
+                # Restore feedback queue (convert list back to deque)
+                if 'feedback_queue' in checkpoint_data:
+                    self.feedback_queue = deque(checkpoint_data['feedback_queue'], maxlen=10000)
+
+                # Restore model versions
+                if 'model_versions' in checkpoint_data:
+                    self.model_versions = checkpoint_data['model_versions']
+
+                # Restore session tracking
+                if 'current_session_id' in checkpoint_data:
+                    self.current_session_id = checkpoint_data['current_session_id']
+
+                checkpoint_age = time.time() - checkpoint_data.get('save_timestamp', time.time())
+                logger.info(f"📂 CONTINUOUS LEARNING CHECKPOINT LOADED")
+                logger.info(f"🔄 FEEDBACK QUEUE SIZE: {len(self.feedback_queue)}")
+                logger.info(f"📊 MODEL VERSIONS: {len(self.model_versions)}")
+                logger.info(f"⏰ CHECKPOINT AGE: {checkpoint_age/3600:.1f} hours")
+
+            else:
+                logger.info("📂 No continuous learning checkpoint found - starting fresh")
+
+        except Exception as e:
+            logger.error(f"Error loading continuous learning checkpoint: {e}")
+            logger.info("📂 Starting fresh learning session due to checkpoint error")
+
+    def _save_learning_checkpoint(self):
+        """Save learning checkpoint for persistence across sessions"""
+        try:
+            checkpoint_data = {
+                'save_timestamp': time.time(),
+                'learning_rate': self.learning_rate,
+                'batch_size': self.batch_size,
+                'feedback_queue': list(self.feedback_queue),  # Convert deque to list for pickling
+                'model_versions': self.model_versions,
+                'current_session_id': self.current_session_id,
+                'learning_active': self.learning_active
+            }
+
+            # Create backup of existing checkpoint
+            if os.path.exists(self.checkpoint_file):
+                backup_file = self.checkpoint_file + '.backup'
+                shutil.copy2(self.checkpoint_file, backup_file)
+
+            # Save new checkpoint
+            with open(self.checkpoint_file, 'wb') as f:
+                pickle.dump(checkpoint_data, f)
+
+            logger.info(f"💾 CONTINUOUS LEARNING CHECKPOINT SAVED: {len(self.feedback_queue)} feedback instances")
+
+        except Exception as e:
+            logger.error(f"Error saving continuous learning checkpoint: {e}")
+
     def initialize(self) -> bool:
         """Initialize continuous learning system"""
         try:
             logger.info("Initializing continuous learning system...")
-            
+
+            # Load checkpoint before initializing components (if method exists)
+            if hasattr(self, '_load_learning_checkpoint'):
+                self._load_learning_checkpoint()
+
             # Initialize components
             self.feedback_collector.initialize()
             self.active_learner.initialize()
             self.model_validator.initialize()
             self.dataset_manager.initialize()
             self.performance_tracker.initialize()
-            
+
             # Load existing datasets
             self._load_initial_datasets()
 
@@ -186,7 +262,12 @@ class ContinuousLearningSystem(BaseProcessor):
             # Check for active learning opportunities
             if confidence < self.uncertainty_threshold:
                 self.active_learner.add_uncertain_sample(learning_instance)
-            
+
+            # AUTO-SAVE CHECKPOINT PERIODICALLY
+            if len(self.feedback_queue) - self.last_checkpoint_save >= self.auto_save_interval:
+                self._save_learning_checkpoint()
+                self.last_checkpoint_save = len(self.feedback_queue)
+
         except Exception as e:
             logger.error(f"Error adding prediction feedback: {e}")
     
@@ -758,3 +839,20 @@ class PerformanceTracker:
         if model_name in self.performance_history and self.performance_history[model_name]:
             return self.performance_history[model_name][-1]
         return None
+
+    def cleanup(self):
+        """Cleanup and save final checkpoint"""
+        try:
+            # Save final checkpoint
+            self._save_learning_checkpoint()
+            logger.info("💾 Final continuous learning checkpoint saved")
+
+            # Stop learning thread
+            self.learning_active = False
+            if self.learning_thread and self.learning_thread.is_alive():
+                self.learning_thread.join(timeout=5.0)
+
+            logger.info("Continuous learning system cleaned up")
+
+        except Exception as e:
+            logger.error(f"Error during continuous learning cleanup: {e}")

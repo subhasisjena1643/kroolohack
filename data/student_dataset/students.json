@@ -1,0 +1,29 @@
+[
+    {
+        "roll_number": "C001",
+        "name": "Subhasis",
+        "application_number": "APP2021001",
+        "department": "Computer Science Engineering",
+        "year": "2021",
+        "section": "A",
+        "photo_path": "data/student_dataset/photos/C001.jpg"
+    },
+    {
+        "roll_number": "C002",
+        "name": "Sachin",
+        "application_number": "APP2021002",
+        "department": "Computer Science Engineering",
+        "year": "2021",
+        "section": "A",
+        "photo_path": "data/student_dataset/photos/C002.jpg"
+    },
+    {
+        "roll_number": "C003",
+        "name": "Tahir",
+        "application_number": "APP2021003",
+        "department": "Computer Science Engineering",
+        "year": "2021",
+        "section": "A",
+        "photo_path": "data/student_dataset/photos/C003.jpg"
+    }
+]

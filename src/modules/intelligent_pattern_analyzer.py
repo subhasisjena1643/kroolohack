@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 from typing import Dict, List, Tuple, Any, Optional
 import time
+import os
 import pickle
 from collections import deque
 from sklearn.ensemble import IsolationForest, RandomForestClassifier
@@ -65,9 +66,13 @@ class IntelligentPatternAnalyzer(BaseProcessor):
             # Initialize behavioral classifier
             self.behavioral_classifier.initialize()
             
+            # Load checkpoint before loading models (if method exists)
+            if hasattr(self, '_load_checkpoint'):
+                self._load_checkpoint()
+
             # Load pre-trained models if available
             self._load_pretrained_models()
-            
+
             # Initialize ML models
             self._initialize_ml_models()
             
@@ -572,12 +577,14 @@ class IntelligentPatternAnalyzer(BaseProcessor):
     
     def cleanup(self):
         """Cleanup resources"""
-        # Save models for future use
+        # Save models and checkpoint for future use
         try:
             self._save_models()
+            self._save_checkpoint()
+            logger.info("💾 Models and checkpoint saved successfully")
         except Exception as e:
-            logger.error(f"Error saving models: {e}")
-        
+            logger.error(f"Error saving models/checkpoint: {e}")
+
         logger.info("Intelligent pattern analyzer cleaned up")
     
     def _save_models(self):
@@ -593,6 +600,58 @@ class IntelligentPatternAnalyzer(BaseProcessor):
             
         except Exception as e:
             logger.error(f"Error saving models: {e}")
+
+    def _save_checkpoint(self):
+        """Save learning checkpoint for persistence"""
+        try:
+            checkpoint_dir = os.path.join(os.path.dirname(__file__), '..', '..', 'checkpoints', 'pattern_analyzer')
+            os.makedirs(checkpoint_dir, exist_ok=True)
+            checkpoint_file = os.path.join(checkpoint_dir, 'pattern_analyzer_checkpoint.pkl')
+
+            checkpoint_data = {
+                'save_timestamp': time.time(),
+                'pattern_history': list(self.pattern_history),
+                'feature_importance': self.feature_importance,
+                'learning_rate': getattr(self, 'learning_rate', 0.01),
+                'model_performance': getattr(self, 'model_performance', {}),
+                'training_iterations': getattr(self, 'training_iterations', 0)
+            }
+
+            with open(checkpoint_file, 'wb') as f:
+                pickle.dump(checkpoint_data, f)
+
+            logger.info(f"💾 Pattern analyzer checkpoint saved")
+
+        except Exception as e:
+            logger.error(f"Error saving pattern analyzer checkpoint: {e}")
+
+    def _load_checkpoint(self):
+        """Load learning checkpoint to continue from last session"""
+        try:
+            checkpoint_dir = os.path.join(os.path.dirname(__file__), '..', '..', 'checkpoints', 'pattern_analyzer')
+            checkpoint_file = os.path.join(checkpoint_dir, 'pattern_analyzer_checkpoint.pkl')
+
+            if os.path.exists(checkpoint_file):
+                with open(checkpoint_file, 'rb') as f:
+                    checkpoint_data = pickle.load(f)
+
+                # Restore pattern history
+                if 'pattern_history' in checkpoint_data:
+                    self.pattern_history = deque(checkpoint_data['pattern_history'], maxlen=1000)
+
+                # Restore feature importance
+                if 'feature_importance' in checkpoint_data:
+                    self.feature_importance = checkpoint_data['feature_importance']
+
+                checkpoint_age = time.time() - checkpoint_data.get('save_timestamp', time.time())
+                logger.info(f"📂 Pattern analyzer checkpoint loaded (age: {checkpoint_age/3600:.1f} hours)")
+
+            else:
+                logger.info("📂 No pattern analyzer checkpoint found - starting fresh")
+
+        except Exception as e:
+            logger.error(f"Error loading pattern analyzer checkpoint: {e}")
+            logger.info("📂 Starting fresh pattern analysis session")
 
 # Helper classes for feature extraction and analysis
 class EngagementFeatureExtractor:

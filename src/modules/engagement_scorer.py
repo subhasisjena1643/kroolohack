@@ -31,7 +31,9 @@ class EngagementScorer(BaseProcessor):
         # History and tracking
         self.history_window = config.get('history_window', 30)  # seconds
         self.engagement_history = deque(maxlen=self.history_window * 10)  # 10 FPS
-        self.individual_scores = {}
+        self.individual_scores = {}  # Track scores for each detected person
+        self.person_trackers = {}  # Track individual people across frames
+        self.next_person_id = 1  # Assign unique IDs to people
         
         # Current metrics
         self.current_engagement_score = 0.0
@@ -90,6 +92,10 @@ class EngagementScorer(BaseProcessor):
             participation_score = self._calculate_participation_score(gesture_data)
             audio_engagement_score = self._calculate_audio_engagement_score(audio_data)
             posture_score = self._calculate_posture_score(pose_data)
+
+            # Track individual people and their scores
+            body_data = data.get('advanced_body_detection', {})
+            self._update_individual_tracking(face_data, pose_data, gesture_data, body_data)
             
             # Calculate overall engagement score with real-time responsiveness
             overall_engagement = (
@@ -400,6 +406,158 @@ class EngagementScorer(BaseProcessor):
         # (Implementation would depend on having access to component scores)
         
         return recommendations
+
+    def _update_individual_tracking(self, face_data: Dict[str, Any], pose_data: Dict[str, Any],
+                                   gesture_data: Dict[str, Any], body_data: Dict[str, Any]):
+        """Track individual people and calculate their engagement scores"""
+        try:
+            faces = face_data.get('faces', [])
+            current_time = time.time()
+
+            # Update individual scores for each detected face
+            for i, face in enumerate(faces):
+                person_id = f"person_{i}"  # Simple ID based on detection order
+
+                # Calculate individual scores for this person
+                individual_attention = self._calculate_individual_attention(face, pose_data)
+                individual_participation = self._calculate_individual_participation(face, gesture_data)
+                individual_posture = self._calculate_individual_posture(face, body_data)
+
+                # Store individual scores
+                if person_id not in self.individual_scores:
+                    self.individual_scores[person_id] = {
+                        'attention_history': deque(maxlen=30),
+                        'participation_history': deque(maxlen=30),
+                        'posture_history': deque(maxlen=30),
+                        'last_seen': current_time,
+                        'face_info': face
+                    }
+
+                # Update histories
+                self.individual_scores[person_id]['attention_history'].append(individual_attention)
+                self.individual_scores[person_id]['participation_history'].append(individual_participation)
+                self.individual_scores[person_id]['posture_history'].append(individual_posture)
+                self.individual_scores[person_id]['last_seen'] = current_time
+                self.individual_scores[person_id]['face_info'] = face
+
+                # Log individual scores every few seconds
+                if not hasattr(self, '_last_individual_log_time') or current_time - self._last_individual_log_time > 5.0:
+                    avg_attention = sum(self.individual_scores[person_id]['attention_history']) / len(self.individual_scores[person_id]['attention_history'])
+                    avg_participation = sum(self.individual_scores[person_id]['participation_history']) / len(self.individual_scores[person_id]['participation_history'])
+                    avg_posture = sum(self.individual_scores[person_id]['posture_history']) / len(self.individual_scores[person_id]['posture_history'])
+
+                    logger.info(f"👤 {person_id.upper()}: Attention={avg_attention:.3f}, "
+                               f"Participation={avg_participation:.3f}, Posture={avg_posture:.3f}, "
+                               f"Confidence={face.get('confidence', 0.0):.3f}")
+
+            # Clean up old person data (not seen for 10 seconds)
+            persons_to_remove = []
+            for person_id, data in self.individual_scores.items():
+                if current_time - data['last_seen'] > 10.0:
+                    persons_to_remove.append(person_id)
+
+            for person_id in persons_to_remove:
+                del self.individual_scores[person_id]
+
+            # Update log time
+            if len(faces) > 0 and (not hasattr(self, '_last_individual_log_time') or current_time - self._last_individual_log_time > 5.0):
+                self._last_individual_log_time = current_time
+
+        except Exception as e:
+            logger.error(f"Error in individual tracking: {e}")
+
+    def _calculate_individual_attention(self, face: Dict[str, Any], pose_data: Dict[str, Any]) -> float:
+        """Calculate attention score for individual person"""
+        try:
+            # Base attention from face detection confidence
+            attention = face.get('confidence', 0.0) * 0.5
+
+            # Add pose-based attention if available
+            poses = pose_data.get('poses', [])
+            if poses:
+                # Find closest pose to this face
+                face_center = face.get('center', [0, 0])
+                closest_pose = None
+                min_distance = float('inf')
+
+                for pose in poses:
+                    pose_center = pose.get('center', [0, 0])
+                    distance = ((face_center[0] - pose_center[0])**2 + (face_center[1] - pose_center[1])**2)**0.5
+                    if distance < min_distance:
+                        min_distance = distance
+                        closest_pose = pose
+
+                if closest_pose and min_distance < 100:  # Within reasonable distance
+                    attention += closest_pose.get('attention_score', 0.0) * 0.5
+
+            return min(1.0, attention)
+
+        except Exception as e:
+            logger.error(f"Error calculating individual attention: {e}")
+            return 0.0
+
+    def _calculate_individual_participation(self, face: Dict[str, Any], gesture_data: Dict[str, Any]) -> float:
+        """Calculate participation score for individual person"""
+        try:
+            # Base participation from face size (closer = more engaged)
+            face_area = face.get('area', 0)
+            participation = min(0.3, face_area / 10000)  # Normalize face area
+
+            # Add gesture-based participation if available
+            gestures = gesture_data.get('gestures', {})
+            if gestures:
+                # Simple heuristic: if any gestures detected, add to participation
+                gesture_score = min(0.7, len(gestures) * 0.2)
+                participation += gesture_score
+
+            return min(1.0, participation)
+
+        except Exception as e:
+            logger.error(f"Error calculating individual participation: {e}")
+            return 0.0
+
+    def _calculate_individual_posture(self, face: Dict[str, Any], body_data: Dict[str, Any]) -> float:
+        """Calculate posture score for individual person"""
+        try:
+            # Base posture from face position (centered = better posture)
+            face_center = face.get('center', [320, 240])  # Default center
+            frame_center = [320, 240]  # Assume 640x480 frame
+
+            # Distance from center (normalized)
+            distance = ((face_center[0] - frame_center[0])**2 + (face_center[1] - frame_center[1])**2)**0.5
+            max_distance = (320**2 + 240**2)**0.5
+            posture = 1.0 - (distance / max_distance)
+
+            return max(0.0, posture)
+
+        except Exception as e:
+            logger.error(f"Error calculating individual posture: {e}")
+            return 0.0
+
+    def get_individual_scores(self) -> Dict[str, Any]:
+        """Get current individual scores for all tracked people"""
+        result = {}
+        current_time = time.time()
+
+        for person_id, data in self.individual_scores.items():
+            if current_time - data['last_seen'] < 5.0:  # Only include recently seen people
+                attention_history = list(data['attention_history'])
+                participation_history = list(data['participation_history'])
+                posture_history = list(data['posture_history'])
+
+                result[person_id] = {
+                    'current_attention': attention_history[-1] if attention_history else 0.0,
+                    'current_participation': participation_history[-1] if participation_history else 0.0,
+                    'current_posture': posture_history[-1] if posture_history else 0.0,
+                    'average_attention': sum(attention_history) / len(attention_history) if attention_history else 0.0,
+                    'average_participation': sum(participation_history) / len(participation_history) if participation_history else 0.0,
+                    'average_posture': sum(posture_history) / len(posture_history) if posture_history else 0.0,
+                    'face_confidence': data['face_info'].get('confidence', 0.0),
+                    'face_area': data['face_info'].get('area', 0),
+                    'last_seen': data['last_seen']
+                }
+
+        return result
     
     def get_engagement_summary(self) -> Dict[str, Any]:
         """Get comprehensive engagement summary"""

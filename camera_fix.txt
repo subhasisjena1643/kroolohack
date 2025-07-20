@@ -1,0 +1,6 @@
+
+# Add this to the top of your main.py camera initialization:
+WORKING_CAMERA_INDEX = 0
+
+# Replace the camera initialization with:
+self.cap = cv2.VideoCapture(WORKING_CAMERA_INDEX, cv2.CAP_DSHOW)

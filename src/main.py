@@ -38,6 +38,7 @@ try:
     from src.modules.intelligent_pattern_analyzer import IntelligentPatternAnalyzer
     from src.modules.behavioral_classifier import BehavioralPatternClassifier
     from src.modules.intelligent_alert_system import IntelligentAlertSystem
+    from src.modules.automated_attendance_system import AutomatedAttendanceSystem
     # Import continuous learning modules
     from src.modules.continuous_learning_system import ContinuousLearningSystem
     from src.modules.feedback_interface import FeedbackInterface
@@ -90,6 +91,7 @@ class EngagementAnalyzer:
         self.intelligent_pattern_analyzer = None
         self.behavioral_classifier = None
         self.intelligent_alert_system = None
+        self.automated_attendance_system = None
 
         # Continuous learning modules
         self.continuous_learning_system = None
@@ -168,30 +170,46 @@ class EngagementAnalyzer:
             return False
     
     def _initialize_camera(self) -> bool:
-        """Initialize camera capture"""
+        """Initialize camera capture with robust error handling"""
         try:
             logger.info("Initializing camera...")
-            
-            self.cap = cv2.VideoCapture(self.config.video.camera_index)
-            
-            if not self.cap.isOpened():
-                logger.error("Failed to open camera")
-                return False
-            
-            # Set camera properties
-            self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.config.video.frame_width)
-            self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.config.video.frame_height)
-            self.cap.set(cv2.CAP_PROP_FPS, self.config.video.fps)
-            
-            # Test camera
-            ret, frame = self.cap.read()
-            if not ret:
-                logger.error("Failed to read from camera")
-                return False
-            
-            logger.info(f"Camera initialized: {frame.shape}")
-            return True
-            
+
+            # Try multiple camera indices if the default fails
+            camera_indices = [self.config.video.camera_index, 0, 1, 2]
+
+            for camera_index in camera_indices:
+                logger.info(f"Trying camera index {camera_index}...")
+
+                # Use DirectShow backend for better Windows compatibility
+                self.cap = cv2.VideoCapture(camera_index, cv2.CAP_DSHOW)
+
+                if not self.cap.isOpened():
+                    logger.warning(f"Failed to open camera {camera_index}")
+                    continue
+
+                # Set camera properties
+                self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.config.video.frame_width)
+                self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.config.video.frame_height)
+                self.cap.set(cv2.CAP_PROP_FPS, self.config.video.fps)
+
+                # Test camera with multiple attempts
+                for attempt in range(3):
+                    ret, frame = self.cap.read()
+                    if ret:
+                        logger.info(f"✅ Camera {camera_index} initialized successfully: {frame.shape}")
+                        return True
+                    else:
+                        logger.warning(f"Attempt {attempt + 1}: Failed to read from camera {camera_index}")
+                        import time
+                        time.sleep(0.5)  # Wait before retry
+
+                # If we get here, this camera didn't work
+                self.cap.release()
+                logger.warning(f"Camera {camera_index} failed after 3 attempts")
+
+            logger.error("All camera indices failed")
+            return False
+
         except Exception as e:
             logger.error(f"Camera initialization failed: {e}")
             return False
@@ -256,10 +274,20 @@ class EngagementAnalyzer:
             if not self.intelligent_alert_system.initialize():
                 return False
 
+            # Automated Attendance System
+            self.automated_attendance_system = AutomatedAttendanceSystem(self.config.video.__dict__)
+            if not self.automated_attendance_system.initialize():
+                logger.warning("Automated attendance system failed to initialize - continuing without it")
+                self.automated_attendance_system = None
+
             # Continuous Learning System
             self.continuous_learning_system = ContinuousLearningSystem(self.config.engagement.__dict__)
             if not self.continuous_learning_system.initialize():
                 return False
+
+            # Connect continuous learning system to attendance system
+            if self.automated_attendance_system:
+                self.automated_attendance_system.set_external_learning_system(self.continuous_learning_system)
 
             # Register models for continuous learning
             self._register_models_for_learning()
@@ -319,6 +347,8 @@ class EngagementAnalyzer:
             self.intelligent_pattern_analyzer.start()
             self.behavioral_classifier.start()
             self.intelligent_alert_system.start()
+            if self.automated_attendance_system:
+                self.automated_attendance_system.start()
             
             # Start main processing loop
             self.is_running = True
@@ -483,6 +513,7 @@ class EngagementAnalyzer:
                     self.processing_times['micro_expression_analysis'] = 0.001  # Minimal time for cached result
 
             # OPTIMIZATION: Head Pose Estimation (Skip every 6th frame for speed)
+            pose_result = None  # Initialize pose_result
             if self.optimization_frame_counter % 6 == 0:  # Process every 6th frame
                 start_time = time.time()
                 pose_input = {'frame': frame, 'faces': face_result.get('faces', []) if face_result else []}
@@ -495,6 +526,7 @@ class EngagementAnalyzer:
             else:
                 # Use cached result for skipped frames
                 if hasattr(self, 'cached_pose_result'):
+                    pose_result = self.cached_pose_result
                     results['pose_estimation'] = self.cached_pose_result
                     self.processing_times['pose_estimation'] = 0.001  # Minimal time for cached result
 
@@ -572,6 +604,20 @@ class EngagementAnalyzer:
                     results['intelligent_alerts'] = alert_result
                     self.processing_times['intelligent_alerts'] = time.time() - start_time
 
+            # Automated Attendance System (facial recognition and tracking)
+            if results and self.automated_attendance_system:
+                start_time = time.time()
+                attendance_data = {
+                    'frame': frame,
+                    'face_detection': face_result if face_result else {},
+                    'pose_estimation': pose_result if pose_result else {},
+                    'gesture_recognition': gesture_result if gesture_result else {}
+                }
+                attendance_result = self.automated_attendance_system.process_data(attendance_data)
+                if attendance_result:
+                    results['automated_attendance'] = attendance_result
+                    self.processing_times['automated_attendance'] = time.time() - start_time
+
             # Continuous Learning (collect data for improvement) - async
             if results and engagement_result:
                 # Run learning data collection in background to not block main loop
@@ -642,6 +688,12 @@ class EngagementAnalyzer:
                 # Draw engagement info
                 if engagement_result:
                     self._draw_engagement_info(display_frame, engagement_result)
+
+                # Draw automated attendance info
+                attendance_result = self.automated_attendance_system.get_latest_result() if self.automated_attendance_system else None
+                if attendance_result:
+                    self._draw_attendance_annotations(display_frame, attendance_result)
+                    self._draw_attendance_alerts(display_frame, attendance_result)
 
                 # Draw advanced analysis info
                 if eye_tracking_result:
@@ -1089,6 +1141,154 @@ class EngagementAnalyzer:
 
         except Exception as e:
             logger.error(f"Error drawing performance info: {e}")
+
+    def _draw_attendance_annotations(self, frame, attendance_result):
+        """Draw attendance system annotations on frame"""
+        try:
+            if not attendance_result:
+                return
+
+            # Draw face annotations with roll numbers
+            annotations = attendance_result.get('frame_annotations', [])
+            for annotation in annotations:
+                if annotation.get('type') == 'rectangle':
+                    bbox = annotation.get('bbox', [])
+                    if len(bbox) == 4:
+                        x1, y1, x2, y2 = bbox
+                        color = annotation.get('color', (0, 255, 0))
+                        thickness = annotation.get('thickness', 2)
+                        label = annotation.get('label', 'Unknown')
+                        confidence = annotation.get('confidence', 0.0)
+
+                        # Special handling for LOCKED FACES
+                        is_locked = annotation.get('is_locked', False)
+                        lock_duration = annotation.get('lock_duration', 0.0)
+
+                        if is_locked:
+                            # LOCKED FACE: Special red styling with pulsing effect
+                            import time
+                            pulse = int(time.time() * 4) % 2  # Pulse every 0.25 seconds
+                            lock_color = (0, 0, 255) if pulse else (0, 100, 255)  # Red to orange pulse
+
+                            # Draw double border for locked faces
+                            cv2.rectangle(frame, (x1-2, y1-2), (x2+2, y2+2), lock_color, thickness+2)
+                            cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 0, 255), thickness)
+
+                            # Enhanced label for locked faces
+                            label_text = f"🔒 {label} - LOCKED {lock_duration:.0f}s"
+                            font_scale = 0.7  # Larger font for locked faces
+                            font_thickness = 2
+                        else:
+                            # Regular face rectangle
+                            cv2.rectangle(frame, (x1, y1), (x2, y2), color, thickness)
+                            label_text = f"{label} ({confidence:.2f})"
+                            font_scale = 0.6
+                            font_thickness = 2
+
+                        # Draw label background
+                        (text_width, text_height), _ = cv2.getTextSize(label_text, cv2.FONT_HERSHEY_SIMPLEX, font_scale, font_thickness)
+                        bg_color = (0, 0, 255) if is_locked else color
+                        cv2.rectangle(frame, (x1, y1 - text_height - 10), (x1 + text_width + 10, y1), bg_color, -1)
+
+                        # Draw label text
+                        text_color = (255, 255, 255) if is_locked else (255, 255, 255)
+                        cv2.putText(frame, label_text, (x1 + 5, y1 - 5),
+                                   cv2.FONT_HERSHEY_SIMPLEX, font_scale, text_color, font_thickness)
+
+            # Draw attendance summary panel
+            self._draw_attendance_panel(frame, attendance_result)
+
+        except Exception as e:
+            logger.error(f"Error drawing attendance annotations: {e}")
+
+    def _draw_attendance_panel(self, frame, attendance_result):
+        """Draw attendance summary panel in corner"""
+        try:
+            frame_height, frame_width = frame.shape[:2]
+            # Move to top-left corner to avoid all conflicts
+            panel_width = 220  # Smaller width
+            panel_height = 80   # Smaller height
+            panel_x = 10  # Left side
+            panel_y = 160  # Below main engagement panel
+
+            # Background panel
+            cv2.rectangle(frame, (panel_x, panel_y), (panel_x + panel_width, panel_y + panel_height), (0, 0, 0), -1)
+            cv2.rectangle(frame, (panel_x, panel_y), (panel_x + panel_width, panel_y + panel_height), (0, 255, 255), 2)
+
+            # Title (smaller)
+            cv2.putText(frame, "ATTENDANCE", (panel_x + 10, panel_y + 20),
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
+
+            # Attendance statistics (smaller text)
+            present_count = attendance_result.get('attendance_count', 0)
+            total_recognized = attendance_result.get('total_recognized', 0)
+            active_alerts = len(attendance_result.get('active_alerts', []))
+
+            cv2.putText(frame, f"Present: {present_count}", (panel_x + 10, panel_y + 40),
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
+
+            cv2.putText(frame, f"Recognized: {total_recognized}", (panel_x + 10, panel_y + 60),
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+
+            # Alert indicator (smaller)
+            alert_color = (0, 0, 255) if active_alerts > 0 else (0, 255, 0)
+            cv2.putText(frame, f"Alerts: {active_alerts}", (panel_x + 10, panel_y + 80),
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.5, alert_color, 1)
+
+        except Exception as e:
+            logger.error(f"Error drawing attendance panel: {e}")
+
+    def _draw_attendance_alerts(self, frame, attendance_result):
+        """Draw attendance alerts on frame"""
+        try:
+            if not attendance_result:
+                return
+
+            active_alerts = attendance_result.get('active_alerts', [])
+            if not active_alerts:
+                return
+
+            frame_height, frame_width = frame.shape[:2]
+
+            # Alert panel position (top-right corner to keep center clear)
+            panel_width = 350  # Smaller width
+            panel_height = min(50 + len(active_alerts) * 25, 150)  # Smaller height
+            panel_x = frame_width - panel_width - 10  # Right side
+            panel_y = 10  # Top
+
+            # Background panel with red border for alerts
+            cv2.rectangle(frame, (panel_x, panel_y), (panel_x + panel_width, panel_y + panel_height), (0, 0, 0), -1)
+            cv2.rectangle(frame, (panel_x, panel_y), (panel_x + panel_width, panel_y + panel_height), (0, 0, 255), 3)
+
+            # Alert title (smaller)
+            cv2.putText(frame, "⚠️ ALERTS ⚠️", (panel_x + 10, panel_y + 20),
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
+
+            # Draw individual alerts (smaller text)
+            y_offset = panel_y + 40
+            for i, alert in enumerate(active_alerts[:4]):  # Show max 4 alerts
+                alert_type = alert.get('alert_type', 'unknown')
+                name = alert.get('name', 'Unknown')
+                roll_number = alert.get('roll_number', 'N/A')
+                duration = alert.get('duration', 0.0)
+
+                if alert_type == 'disappearance':
+                    alert_text = f"🚨 {name} ({roll_number}) - {duration:.0f}s"
+                    # Flash effect for urgent alerts
+                    import time
+                    flash = int(time.time() * 3) % 2  # Flash every 0.33 seconds
+                    text_color = (0, 0, 255) if flash else (255, 255, 255)
+                else:
+                    alert_text = f"⚠️ {name} ({roll_number}) - {alert_type}"
+                    text_color = (0, 165, 255)
+
+                cv2.putText(frame, alert_text, (panel_x + 10, y_offset),
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.4, text_color, 1)  # Smaller font
+
+                y_offset += 22  # Smaller spacing
+
+        except Exception as e:
+            logger.error(f"Error drawing attendance alerts: {e}")
     
     def _update_fps(self):
         """Update FPS counter"""
@@ -1302,6 +1502,8 @@ class EngagementAnalyzer:
             self.behavioral_classifier.stop()
         if self.intelligent_alert_system:
             self.intelligent_alert_system.stop()
+        if self.automated_attendance_system:
+            self.automated_attendance_system.cleanup()
 
         # Stop continuous learning modules
         if self.continuous_learning_system:

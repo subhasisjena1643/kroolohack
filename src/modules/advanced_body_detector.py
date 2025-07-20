@@ -36,9 +36,9 @@ class AdvancedBodyDetector(BaseProcessor):
         self.mp_drawing_styles = mp.solutions.drawing_styles
         self.holistic = None
         
-        # Detection parameters
-        self.min_detection_confidence = config.get('min_detection_confidence', 0.7)
-        self.min_tracking_confidence = config.get('min_tracking_confidence', 0.5)
+        # Detection parameters - OPTIMIZED FOR CLASSROOM DISTANCE
+        self.min_detection_confidence = config.get('min_detection_confidence', 0.4)  # LOWERED: Better for distant people
+        self.min_tracking_confidence = config.get('min_tracking_confidence', 0.3)  # LOWERED: Better tracking for distant people
         
         # Body part tracking
         self.body_landmarks_history = deque(maxlen=30)  # 1 second at 30fps

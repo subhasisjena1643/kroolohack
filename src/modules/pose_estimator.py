@@ -23,9 +23,9 @@ class HeadPoseEstimator(BaseProcessor):
         self.mp_drawing = mp.solutions.drawing_utils
         self.face_mesh = None
         
-        # Pose estimation parameters
-        self.confidence_threshold = config.get('pose_confidence_threshold', 0.5)
-        self.attention_angle_threshold = config.get('attention_angle_threshold', 30.0)
+        # Pose estimation parameters - OPTIMIZED FOR CLASSROOM DISTANCE
+        self.confidence_threshold = config.get('pose_confidence_threshold', 0.3)  # LOWERED: Better for distant faces
+        self.attention_angle_threshold = config.get('attention_angle_threshold', 35.0)  # INCREASED: More lenient angles
         
         # 3D model points for pose estimation
         self.model_points = np.array([
@@ -51,8 +51,8 @@ class HeadPoseEstimator(BaseProcessor):
             logger.info("Initializing MediaPipe face mesh for pose estimation...")
             
             self.face_mesh = self.mp_face_mesh.FaceMesh(
-                max_num_faces=10,
-                refine_landmarks=True,
+                max_num_faces=20,  # INCREASED: More faces in classroom
+                refine_landmarks=False,  # DISABLED: Faster processing for distant faces
                 min_detection_confidence=self.confidence_threshold,
                 min_tracking_confidence=self.confidence_threshold
             )

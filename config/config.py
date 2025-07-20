@@ -30,17 +30,17 @@ class VideoConfig:
     enable_caching: bool = True
     cache_duration: float = 0.1  # Cache results for 100ms
     
-    # Face detection
-    face_confidence_threshold: float = 0.5
-    max_faces: int = 50  # Maximum faces to detect in classroom
+    # Face detection - OPTIMIZED FOR CLASSROOM DISTANCE
+    face_confidence_threshold: float = 0.3  # LOWERED: Better detection for distant faces
+    max_faces: int = 100  # INCREASED: More faces in large classroom
     
-    # Pose estimation
-    pose_confidence_threshold: float = 0.5
-    attention_angle_threshold: float = 30.0  # degrees
+    # Pose estimation - OPTIMIZED FOR CLASSROOM DISTANCE
+    pose_confidence_threshold: float = 0.3  # LOWERED: Better pose detection for distant people
+    attention_angle_threshold: float = 35.0  # INCREASED: More lenient for distant viewing angles
     
-    # Gesture recognition
-    gesture_confidence_threshold: float = 0.7
-    gesture_buffer_frames: int = 10
+    # Gesture recognition - OPTIMIZED FOR CLASSROOM DISTANCE
+    gesture_confidence_threshold: float = 0.5  # LOWERED: Better gesture detection for distant people
+    gesture_buffer_frames: int = 15  # INCREASED: More frames for distant gesture recognition
 
 @dataclass
 class AudioConfig:
@@ -94,17 +94,44 @@ class CommunicationConfig:
     batch_size: int = 10
 
 @dataclass
+class AttendanceConfig:
+    """Automated attendance system configuration"""
+    # Dataset and database
+    student_dataset_path: str = 'data/student_dataset'
+    attendance_db_path: str = 'data/attendance.db'
+
+    # Face recognition settings - INDUSTRIAL GRADE
+    face_recognition_threshold: float = 0.15  # ULTRA-LENIENT for maximum recognition with spectacles/angles
+    tracking_threshold: float = 0.7  # Face tracking confidence
+    face_recognition_interval: int = 1  # Process EVERY frame for maximum real-time response
+
+    # Advanced recognition settings
+    use_multiple_models: bool = True  # Use ensemble of models for better accuracy
+    face_preprocessing: bool = True   # Enhanced preprocessing for robustness
+    angle_tolerance: float = 45.0     # Maximum face angle deviation (degrees)
+    lighting_normalization: bool = True  # Normalize lighting conditions
+
+    # Tracking and alerts
+    disappearance_alert_duration: float = 30.0  # seconds
+    max_tracking_distance: int = 100  # pixels for person tracking
+    min_face_size: int = 50  # minimum face size for recognition
+
+    # Performance optimization
+    max_persons_to_track: int = 50  # maximum simultaneous tracking
+    cleanup_interval: float = 10.0  # seconds to clean old tracking data
+
+@dataclass
 class SystemConfig:
     """System-wide configuration"""
     # Logging
     log_level: str = "INFO"
     log_file: str = "logs/engagement_analyzer.log"
-    
+
     # Performance
     enable_gpu: bool = False  # Laptop mode - no GPU
     num_threads: int = 4
     memory_limit_mb: int = 2048
-    
+
     # Privacy
     save_faces: bool = False  # Privacy compliant
     anonymize_data: bool = True
@@ -118,6 +145,7 @@ class Config:
         self.audio = AudioConfig()
         self.engagement = EngagementConfig()
         self.communication = CommunicationConfig()
+        self.attendance = AttendanceConfig()
         self.system = SystemConfig()
         
         # Load environment variables
@@ -148,6 +176,7 @@ class Config:
             "audio": self.audio.__dict__,
             "engagement": self.engagement.__dict__,
             "communication": self.communication.__dict__,
+            "attendance": self.attendance.__dict__,
             "system": self.system.__dict__
         }
     
