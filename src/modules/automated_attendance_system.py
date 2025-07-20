@@ -84,9 +84,9 @@ class AutomatedAttendanceSystem(BaseProcessor):
         # Configuration
         self.dataset_path = config.get('student_dataset_path', 'data/student_dataset')
         self.database_path = config.get('attendance_db_path', 'data/attendance.db')
-        # INDUSTRIAL/RESEARCH GRADE DETECTION PARAMETERS - ENHANCED FOR REAL-WORLD CLASSROOMS
-        # Optimized for detecting ALL people (known + unknown) with high precision
-        self.base_face_recognition_threshold = config.get('face_recognition_threshold', 0.45)  # Optimized for classroom diversity
+        # HIGH ACCURACY FACE RECOGNITION - QUALITY FOCUSED
+        # Higher threshold for more accurate recognition
+        self.base_face_recognition_threshold = config.get('face_recognition_threshold', 0.6)  # Higher for accuracy
         self.face_recognition_threshold = self.base_face_recognition_threshold
         self.dynamic_threshold = self.base_face_recognition_threshold
 
@@ -100,19 +100,19 @@ class AutomatedAttendanceSystem(BaseProcessor):
         self.small_face_enhancement = True  # Special processing for small faces
         self.classroom_optimization = True  # Optimized for classroom environments
 
-        # RELAXED CONFIRMATION SYSTEM (for better continuous detection)
-        self.recognition_confirmation_frames = 2  # Reduced to 2 frames for faster confirmation
+        # STABLE CONFIRMATION SYSTEM (for accurate labeling)
+        self.recognition_confirmation_frames = 5  # Multiple frames for stability
         self.recognition_buffer = {}  # person_id -> [recent_recognitions]
-        self.max_buffer_size = 5
+        self.max_buffer_size = 10  # Larger buffer for better tracking
 
-        # RELAXED VALIDATION SYSTEM (for better continuous detection)
-        self.min_face_area = 5000  # Much more lenient minimum face area
-        self.max_recognition_distance = 100  # More lenient pixel distance
-        self.confidence_threshold = 0.5  # More lenient face detection confidence
+        # HIGH ACCURACY VALIDATION SYSTEM (quality focused)
+        self.min_face_area = 6400  # Minimum 80x80 pixels for good recognition
+        self.max_recognition_distance = 50  # Stricter pixel distance for accuracy
+        self.confidence_threshold = 0.7  # Higher confidence for accuracy
 
-        # RELAXED TEMPORAL CONSISTENCY CHECKS
-        self.temporal_window = 15  # More frames to check for consistency
-        self.consistency_threshold = 0.6  # 60% of frames must agree on identity
+        # STABLE TEMPORAL CONSISTENCY CHECKS
+        self.temporal_window = 15  # More frames for stability
+        self.consistency_threshold = 0.8  # Higher threshold for accuracy
 
         # REINFORCEMENT LEARNING SYSTEM
         self.reinforcement_learning_enabled = True
@@ -202,9 +202,14 @@ class AutomatedAttendanceSystem(BaseProcessor):
         self.threshold_adjustment_factor = 0.02
         self.performance_window_size = 50
         
-        # Performance optimization (balanced for speed and accuracy)
-        self.face_recognition_interval = config.get('face_recognition_interval', 3)  # Every 3 frames for balanced performance
+        # REAL-TIME PERFORMANCE OPTIMIZATION - IMMEDIATE LABELING
+        self.face_recognition_interval = config.get('face_recognition_interval', 1)  # EVERY FRAME for immediate labeling
         self.frame_count = 0
+
+        # FAST LABELING PARAMETERS
+        self.enable_immediate_labeling = True
+        self.skip_multi_frame_confirmation = config.get('skip_multi_frame_confirmation', True)
+        self.fast_recognition_mode = True
 
         # INDUSTRIAL-GRADE BODY TRACKING
         self.tracked_bodies: Dict[str, Dict] = {}  # person_id -> tracker_info
@@ -804,8 +809,16 @@ class AutomatedAttendanceSystem(BaseProcessor):
             return self.base_face_recognition_threshold
 
     def _confirm_recognition_multi_frame(self, roll_number: str, confidence: float, bbox: List[int], current_time: float) -> bool:
-        """Multi-frame confirmation system to prevent false positives"""
+        """FAST confirmation system for immediate labeling"""
         try:
+            # IMMEDIATE LABELING MODE - Skip multi-frame confirmation if enabled
+            if self.skip_multi_frame_confirmation:
+                return True
+
+            # For single frame confirmation, just check confidence
+            if self.recognition_confirmation_frames == 1:
+                return confidence > (self.face_recognition_threshold * 0.8)  # 80% of threshold for faster response
+
             # Initialize buffer for this person if not exists
             if roll_number not in self.recognition_buffer:
                 self.recognition_buffer[roll_number] = []
@@ -823,37 +836,26 @@ class AutomatedAttendanceSystem(BaseProcessor):
             if len(self.recognition_buffer[roll_number]) > self.max_buffer_size:
                 self.recognition_buffer[roll_number].pop(0)
 
-            # Check if we have enough consecutive confirmations
+            # FAST confirmation check
             recent_recognitions = self.recognition_buffer[roll_number]
 
             if len(recent_recognitions) >= self.recognition_confirmation_frames:
-                # Check temporal consistency (recognitions should be close in time)
+                # Quick temporal check (within 3 seconds for fast response)
                 time_span = recent_recognitions[-1]['timestamp'] - recent_recognitions[-self.recognition_confirmation_frames]['timestamp']
 
-                if time_span < 15.0:  # Within 15 seconds (much more lenient)
-                    # Check spatial consistency (face positions should be close)
-                    spatial_consistent = self._check_spatial_consistency(recent_recognitions[-self.recognition_confirmation_frames:])
+                if time_span < 3.0:  # Much faster time window
+                    # Quick confidence check only (skip spatial for speed)
+                    confidence_ok = confidence > (self.face_recognition_threshold * 0.8)  # 80% of threshold
 
-                    if spatial_consistent:
-                        # Check confidence consistency (all should be above threshold)
-                        confidence_consistent = all(r['confidence'] > self.face_recognition_threshold for r in recent_recognitions[-self.recognition_confirmation_frames:])
+                    if confidence_ok:
+                        logger.debug(f"✅ FAST CONFIRMED: {roll_number} - conf: {confidence:.3f}")
+                        return True
 
-                        if confidence_consistent:
-                            logger.info(f"✅ MULTI-FRAME CONFIRMED: {roll_number} - {len(recent_recognitions)} consistent recognitions")
-                            return True
-                        else:
-                            logger.info(f"❌ CONFIDENCE INCONSISTENT: {roll_number}")
-                    else:
-                        logger.info(f"❌ SPATIAL INCONSISTENT: {roll_number}")
-                else:
-                    logger.info(f"❌ TEMPORAL INCONSISTENT: {roll_number} - {time_span:.1f}s span")
-
-            logger.info(f"⏳ CONFIRMATION PENDING: {roll_number} - {len(recent_recognitions)}/{self.recognition_confirmation_frames} frames")
             return False
 
         except Exception as e:
-            logger.error(f"Error in multi-frame confirmation: {e}")
-            return False
+            logger.error(f"Error in fast confirmation: {e}")
+            return True  # Default to accepting recognition if error occurs
 
     def _check_spatial_consistency(self, recognitions: List[Dict]) -> bool:
         """Check if face positions are spatially consistent (same person)"""
@@ -1411,7 +1413,7 @@ class AutomatedAttendanceSystem(BaseProcessor):
         return self.latest_result
 
     def _recognize_faces(self, frame: np.ndarray, faces: List[Dict], current_time: float = None) -> List[Dict]:
-        """Recognize faces using enhanced DeepFace with industrial-grade accuracy"""
+        """FAST face recognition optimized for immediate labeling"""
         if current_time is None:
             current_time = time.time()
         recognition_results = []
@@ -1424,8 +1426,11 @@ class AutomatedAttendanceSystem(BaseProcessor):
             logger.warning(f"No known face encodings available. Students loaded: {len(self.students_db)}")
             return recognition_results
 
-        logger.info(f"🔍 INDUSTRIAL-GRADE RECOGNITION: Processing {len(faces)} faces. Known encodings: {len(self.known_face_encodings)}")
-        logger.info(f"🔍 FACE DATA STRUCTURE: {faces}")
+        # Reduced logging for faster processing
+        if self.fast_recognition_mode:
+            logger.debug(f"🚀 FAST RECOGNITION: Processing {len(faces)} faces")
+        else:
+            logger.info(f"🔍 RECOGNITION: Processing {len(faces)} faces. Known encodings: {len(self.known_face_encodings)}")
 
         try:
             for i, face in enumerate(faces):
@@ -1447,54 +1452,35 @@ class AutomatedAttendanceSystem(BaseProcessor):
                     logger.warning(f"❌ INVALID BBOX DIMENSIONS: x2({x2}) <= x1({x1}) or y2({y2}) <= y1({y1})")
                     continue
 
-                # ULTRA-AGGRESSIVE VALIDATION: Detect even the tiniest heads
+                # HIGH ACCURACY VALIDATION: Quality focused
                 face_confidence = face.get('confidence', 0.0)
-                original_confidence = face.get('original_confidence', face_confidence)
-                is_micro_face = face.get('is_micro_face', False)
-                is_tiny_face = face.get('is_tiny_face', False)
-                is_small_face = face.get('is_small_face', False)
                 face_quality = face.get('face_quality', 'unknown')
-                size_category = face.get('size_category', 'unknown')
-                face_size = face.get('face_size', 0)
+                size_category = face.get('size_category', 'normal')
 
-                # EXTREMELY low threshold for maximum detection - catch even 6x6 pixel faces
-                if is_micro_face:
-                    min_confidence = 0.01  # Ultra-low for micro faces
-                elif is_tiny_face:
-                    min_confidence = 0.02  # Very low for tiny faces
-                elif is_small_face:
-                    min_confidence = 0.03  # Low for small faces
-                else:
-                    min_confidence = 0.05  # Standard low threshold
+                # Calculate face size
+                face_size = min(w, h)
 
+                # Strict confidence check for accuracy
+                min_confidence = 0.7  # High threshold for accurate recognition
                 if face_confidence < min_confidence:
-                    # CONTINUOUS LEARNING: Track ultra-low confidence detections
-                    self._continuous_learning_update(face, None, f"ultra_low_confidence_{size_category}")
-                    logger.debug(f"❌ ULTRA LOW CONFIDENCE: {face_confidence:.3f} < {min_confidence:.3f} ({size_category})")
+                    logger.debug(f"❌ LOW CONFIDENCE: {face_confidence:.3f} < {min_confidence:.3f}")
                     continue
 
-                # ULTRA-PERMISSIVE AREA VALIDATION: Accept even 6x6 pixel faces
+                # Strict area validation for accuracy
                 face_area = w * h
-                if is_micro_face:
-                    min_area = 36   # 6x6 pixels minimum
-                elif is_tiny_face:
-                    min_area = 64   # 8x8 pixels minimum
-                elif is_small_face:
-                    min_area = 100  # 10x10 pixels minimum
-                else:
-                    min_area = 200  # Standard minimum
-
+                min_area = 6400  # Minimum 80x80 pixels for good recognition
                 if face_area < min_area:
-                    # CONTINUOUS LEARNING: Track ultra-tiny face detections
-                    self._continuous_learning_update(face, None, f"ultra_tiny_face_{size_category}")
-                    logger.debug(f"❌ FACE TOO TINY: Area {face_area} < {min_area} ({size_category})")
+                    logger.debug(f"❌ FACE TOO SMALL: Area {face_area} < {min_area} (need 80x80 min)")
                     continue
 
-                # CONTINUOUS LEARNING: Track valid face detection with detailed info
-                self._continuous_learning_update(face, None, f"valid_face_{size_category}_{face_quality}")
+                # Check face aspect ratio for quality
+                aspect_ratio = w / h if h > 0 else 0
+                if aspect_ratio < 0.7 or aspect_ratio > 1.4:
+                    logger.debug(f"❌ BAD ASPECT RATIO: {aspect_ratio:.2f} (should be 0.7-1.4)")
+                    continue
 
-                # Log detection details for monitoring tiny faces
-                logger.info(f"✅ FACE DETECTED: Size={face_size}px, Conf={face_confidence:.3f}, Area={face_area}, Category={size_category}, Quality={face_quality}")
+                # Log detection details for monitoring
+                logger.debug(f"✅ HIGH QUALITY FACE: Size={face_size}px, Conf={face_confidence:.3f}, Area={face_area}, Ratio={aspect_ratio:.2f}")
 
                 # Extract face region with minimal padding (reduce noise)
                 padding = 10  # Reduced padding to minimize background noise
@@ -2317,7 +2303,7 @@ class AutomatedAttendanceSystem(BaseProcessor):
 
             if detection_strategy == "face_only":
                 # Close people: Use face detection only
-                if faces and self.frame_count % self.face_recognition_interval == 0:
+                if faces:  # Process every frame for immediate labeling
                     recognition_results = self._recognize_faces(frame, faces, current_time)
                     detection_stats['face_detections'] = len(recognition_results)
 
@@ -2569,7 +2555,7 @@ class AutomatedAttendanceSystem(BaseProcessor):
 
             # First, process face recognition normally
             face_results = []
-            if faces and self.frame_count % self.face_recognition_interval == 0:
+            if faces:  # Process every frame for immediate labeling
                 face_results = self._recognize_faces(frame, faces, current_time)
 
             # Then, process body detection

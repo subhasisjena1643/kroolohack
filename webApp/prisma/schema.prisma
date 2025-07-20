@@ -1,0 +1,173 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Session {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  startTime   DateTime @default(now())
+  endTime     DateTime?
+  status      SessionStatus @default(ACTIVE)
+  
+  // Session Configuration
+  totalStudents Int?
+  classroomLayout Json? // Seating arrangement
+  
+  // Metrics
+  metrics     SessionMetric[]
+  alerts      Alert[]
+  quizzes     Quiz[]
+  summary     SessionSummary?
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@map("sessions")
+}
+
+model SessionMetric {
+  id        String   @id @default(cuid())
+  sessionId String
+  timestamp DateTime @default(now())
+  
+  // Attendance Data
+  attendanceCount    Int
+  attendanceConfidence Float
+  
+  // Engagement Data
+  overallEngagement  Float
+  attentionScore     Float
+  participationScore Float
+  
+  // Zone-based Engagement
+  frontZoneEngagement  Float?
+  middleZoneEngagement Float?
+  backZoneEngagement   Float?
+  
+  // Audio Data
+  noiseLevel         Float
+  speakerActivity    Float
+  
+  // Raw AI Data (for debugging)
+  rawData Json?
+  
+  session Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  
+  @@map("session_metrics")
+}
+
+model Alert {
+  id        String    @id @default(cuid())
+  sessionId String
+  timestamp DateTime  @default(now())
+  
+  type      AlertType
+  severity  AlertSeverity
+  zone      String?
+  message   String
+  
+  // Alert Data
+  triggerValue Float?
+  threshold    Float?
+  
+  // Status
+  acknowledged Boolean @default(false)
+  acknowledgedAt DateTime?
+  
+  session Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  
+  @@map("alerts")
+}
+
+model User {
+  id       String @id @default(cuid())
+  email    String @unique
+  name     String
+  role     UserRole @default(INSTRUCTOR)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("users")
+}
+
+model Quiz {
+  id        String @id @default(cuid())
+  sessionId String
+  question  String
+  options   String // JSON string of options array
+  type      String // 'quiz' or 'poll'
+  duration  Int @default(60) // duration in seconds
+  status    String @default("ACTIVE") // 'ACTIVE', 'ENDED'
+
+  createdAt DateTime @default(now())
+  endedAt   DateTime?
+
+  session   Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  responses QuizResponse[]
+
+  @@map("quizzes")
+}
+
+model QuizResponse {
+  id          String @id @default(cuid())
+  quizId      String
+  studentId   String // anonymous student identifier
+  answer      String
+  submittedAt DateTime @default(now())
+
+  quiz Quiz @relation(fields: [quizId], references: [id], onDelete: Cascade)
+
+  @@map("quiz_responses")
+}
+
+enum SessionStatus {
+  ACTIVE
+  PAUSED
+  COMPLETED
+  CANCELLED
+}
+
+enum AlertType {
+  DISENGAGEMENT
+  LOW_ATTENDANCE
+  HIGH_NOISE
+  PARTICIPATION_DROP
+  TECHNICAL_ISSUE
+}
+
+enum AlertSeverity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum UserRole {
+  INSTRUCTOR
+  ADMIN
+  TA
+}
+
+model SessionSummary {
+  id          String   @id @default(cuid())
+  sessionId   String   @unique
+  audioData   String?  // Base64 encoded audio or transcript
+  summary     String?  // AI generated summary
+  topics      Json?    // Array of topics covered
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  session     Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@map("session_summaries")
+}

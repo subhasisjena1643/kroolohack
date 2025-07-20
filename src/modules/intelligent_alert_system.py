@@ -52,19 +52,22 @@ class IntelligentAlertSystem(BaseProcessor):
     def __init__(self, config: Dict[str, Any]):
         super().__init__("IntelligentAlertSystem", config)
         
-        # Alert configuration
-        self.confidence_threshold = config.get('confidence_threshold', 0.8)
+        # SIMPLIFIED ALERT CONFIGURATION - FOCUS ON ACCURACY
+        self.confidence_threshold = config.get('confidence_threshold', 0.9)  # Much higher threshold
         self.severity_thresholds = {
-            AlertSeverity.LOW: 0.6,
-            AlertSeverity.MEDIUM: 0.75,
-            AlertSeverity.HIGH: 0.85,
-            AlertSeverity.CRITICAL: 0.95
+            AlertSeverity.LOW: 0.85,
+            AlertSeverity.MEDIUM: 0.9,
+            AlertSeverity.HIGH: 0.95,
+            AlertSeverity.CRITICAL: 0.98
         }
-        
-        # Alert filtering parameters
-        self.min_evidence_duration = config.get('min_evidence_duration', 3.0)  # seconds
-        self.alert_cooldown_period = config.get('alert_cooldown_period', 30.0)  # seconds
-        self.max_alerts_per_minute = config.get('max_alerts_per_minute', 3)
+
+        # STRICT ALERT FILTERING - Reduce false positives
+        self.min_evidence_duration = config.get('min_evidence_duration', 10.0)  # Longer duration required
+        self.alert_cooldown_period = config.get('alert_cooldown_period', 60.0)  # Longer cooldown
+        self.max_alerts_per_minute = config.get('max_alerts_per_minute', 1)  # Fewer alerts
+
+        # DISABLE COMPLEX FEATURES FOR ACCURACY
+        self.enable_complex_alerts = False
         
         # Alert intelligence components
         self.pattern_validator = AlertPatternValidator()
@@ -124,6 +127,10 @@ class IntelligentAlertSystem(BaseProcessor):
                     self._last_none_warning_time = current_time
                 return self._empty_result(error="No engagement data provided")
 
+            # SIMPLIFIED ALERT PROCESSING - Focus on accuracy
+            if not self.enable_complex_alerts:
+                return self._process_simple_alerts(engagement_data)
+
             # Collect evidence
             self._collect_evidence(engagement_data)
             
@@ -170,7 +177,46 @@ class IntelligentAlertSystem(BaseProcessor):
         except Exception as e:
             logger.error(f"Error in intelligent alert processing: {e}")
             return self._empty_result(error=str(e))
-    
+
+    def _process_simple_alerts(self, engagement_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Process simple, accurate alerts without complex analysis"""
+        try:
+            alerts = []
+
+            # Get basic engagement metrics
+            overall_score = engagement_data.get('overall_engagement_score', 0.0)
+            attention_score = engagement_data.get('attention_score', 0.0)
+            participation_score = engagement_data.get('participation_score', 0.0)
+
+            # SIMPLE DISENGAGEMENT DETECTION - Very conservative
+            if overall_score < 0.2 and attention_score < 0.3:  # Very low thresholds
+                current_time = time.time()
+
+                # Check cooldown period
+                if not hasattr(self, '_last_simple_alert_time') or current_time - self._last_simple_alert_time > self.alert_cooldown_period:
+                    alert = {
+                        'alert_id': f"simple_disengagement_{int(current_time * 1000)}",
+                        'alert_type': 'disengagement_detected',
+                        'severity': 'low',
+                        'confidence': 0.8,
+                        'message': f"Low engagement detected (Overall: {overall_score:.2f}, Attention: {attention_score:.2f})",
+                        'timestamp': current_time,
+                        'recommended_action': 'Monitor student engagement'
+                    }
+                    alerts.append(alert)
+                    self._last_simple_alert_time = current_time
+                    logger.info(f"📢 SIMPLE ALERT: {alert['message']}")
+
+            return {
+                'alerts': alerts,
+                'alert_count': len(alerts),
+                'processing_mode': 'simple'
+            }
+
+        except Exception as e:
+            logger.error(f"Error in simple alert processing: {e}")
+            return {'alerts': [], 'alert_count': 0}
+
     def _collect_evidence(self, engagement_data: Dict[str, Any]):
         """Collect evidence for alert decision making"""
         current_time = time.time()

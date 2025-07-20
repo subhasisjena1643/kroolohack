@@ -12,8 +12,8 @@ import json
 from collections import deque
 from pathlib import Path
 
-from utils.base_processor import BaseProcessor
-from utils.logger import logger
+from src.utils.base_processor import BaseProcessor
+from src.utils.logger import logger
 from ultralytics import YOLO
 
 class FaceDetector(BaseProcessor):
@@ -22,13 +22,13 @@ class FaceDetector(BaseProcessor):
     def __init__(self, config: Dict[str, Any]):
         super().__init__("FaceDetector", config)
 
-        # Initialize MediaPipe Face Detection - OPTIMIZED FOR CLASSROOM DISTANCE
+        # Initialize MediaPipe Face Detection - FOCUSED ON ACCURACY
         self.mp_face_detection = mp.solutions.face_detection
         self.mp_drawing = mp.solutions.drawing_utils
-        # INDUSTRIAL/RESEARCH GRADE FACE DETECTION
+        # OPTIMIZED FOR ACCURATE FACE DETECTION
         self.face_detection = self.mp_face_detection.FaceDetection(
-            model_selection=1,  # Full range model for maximum accuracy
-            min_detection_confidence=0.1  # ULTRA-LOW: Maximum sensitivity for research-grade detection
+            model_selection=1,  # Full range model for better accuracy
+            min_detection_confidence=0.5  # HIGHER THRESHOLD: Focus on accurate detections only
         )
 
         # Face tracking
@@ -47,6 +47,13 @@ class FaceDetector(BaseProcessor):
             faces = []
             if results.detections:
                 for detection in results.detections:
+                    # Get confidence first for filtering
+                    confidence = detection.score[0]
+
+                    # STRICT CONFIDENCE FILTERING - Only high-quality detections
+                    if confidence < 0.7:  # Higher threshold for better accuracy
+                        continue
+
                     # Get bounding box
                     bbox = detection.location_data.relative_bounding_box
                     h, w, _ = frame.shape
@@ -56,10 +63,22 @@ class FaceDetector(BaseProcessor):
                     width = int(bbox.width * w)
                     height = int(bbox.height * h)
 
+                    # QUALITY FILTERING - Ensure reasonable face size
+                    face_area = width * height
+                    if face_area < 1600:  # Minimum 40x40 pixels for good recognition
+                        continue
+
+                    # ASPECT RATIO FILTERING - Ensure face-like proportions
+                    aspect_ratio = width / height if height > 0 else 0
+                    if aspect_ratio < 0.5 or aspect_ratio > 2.0:  # Reasonable face proportions
+                        continue
+
                     faces.append({
                         'bbox': [x, y, width, height],
-                        'confidence': detection.score[0],
-                        'center': [x + width//2, y + height//2]
+                        'confidence': confidence,
+                        'center': [x + width//2, y + height//2],
+                        'face_area': face_area,
+                        'aspect_ratio': aspect_ratio
                     })
 
             self.face_count = len(faces)
@@ -176,18 +195,18 @@ class AdvancedBodyDetector(BaseProcessor):
         self.face_mesh_model = None
         self.hands_model = None
 
-        # ULTRA-AGGRESSIVE DETECTION FOR SMALLEST HEADS - MAXIMUM SENSITIVITY
-        self.confidence_threshold = config.get('face_confidence_threshold', 0.03)  # EXTREMELY LOW for tiniest heads
-        self.max_persons = config.get('max_faces', 200)  # Very high capacity for detecting everyone
-        self.movement_sensitivity = config.get('movement_sensitivity', 0.001)  # Maximum sensitivity
+        # HIGH ACCURACY FACE DETECTION - FOCUS ON QUALITY
+        self.confidence_threshold = config.get('face_confidence_threshold', 0.7)  # High threshold for accurate detection
+        self.max_persons = config.get('max_faces', 10)  # Focus on fewer, more accurate detections
+        self.movement_sensitivity = config.get('movement_sensitivity', 0.05)  # Reduced sensitivity for stability
 
-        # EXTREME DETECTION PARAMETERS FOR SMALLEST FACES
-        self.nms_threshold = 0.2  # Very aggressive NMS to catch overlapping small faces
-        self.detection_stability_frames = 1  # Immediate detection without waiting
-        self.multi_scale_detection = True  # Multiple scales for tiny faces
-        self.small_face_boost = 3.0  # MASSIVE boost for small faces
-        self.tiny_face_boost = 5.0  # Even bigger boost for extremely small faces
-        self.classroom_mode = True  # Classroom optimization
+        # HIGH ACCURACY DETECTION PARAMETERS - FOCUS ON QUALITY
+        self.nms_threshold = 0.5  # Standard NMS for quality filtering
+        self.detection_stability_frames = 3  # Require 3 frames for stability
+        self.multi_scale_detection = False  # Disable multi-scale for performance
+        self.face_tracking_enabled = True  # Enable face tracking for stability
+        self.min_face_area = 6400  # Minimum 80x80 pixels for good recognition
+        self.quality_mode = True  # Focus on quality over quantity
 
         # ULTRA-PERMISSIVE SIZE PARAMETERS
         self.min_face_pixels = 6  # Detect faces as small as 6x6 pixels

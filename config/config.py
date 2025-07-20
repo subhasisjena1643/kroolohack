@@ -30,9 +30,9 @@ class VideoConfig:
     enable_caching: bool = True
     cache_duration: float = 0.1  # Cache results for 100ms
     
-    # Face detection - OPTIMIZED FOR CLASSROOM DISTANCE
-    face_confidence_threshold: float = 0.3  # LOWERED: Better detection for distant faces
-    max_faces: int = 100  # INCREASED: More faces in large classroom
+    # Face detection - HIGH ACCURACY MODE
+    face_confidence_threshold: float = 0.7  # HIGH: Quality over quantity
+    max_faces: int = 10  # FOCUSED: Better tracking of fewer faces
     
     # Pose estimation - OPTIMIZED FOR CLASSROOM DISTANCE
     pose_confidence_threshold: float = 0.3  # LOWERED: Better pose detection for distant people
@@ -100,10 +100,10 @@ class AttendanceConfig:
     student_dataset_path: str = 'data/student_dataset'
     attendance_db_path: str = 'data/attendance.db'
 
-    # Face recognition settings - INDUSTRIAL GRADE
-    face_recognition_threshold: float = 0.15  # ULTRA-LENIENT for maximum recognition with spectacles/angles
-    tracking_threshold: float = 0.7  # Face tracking confidence
-    face_recognition_interval: int = 1  # Process EVERY frame for maximum real-time response
+    # Face recognition settings - HIGH ACCURACY MODE
+    face_recognition_threshold: float = 0.6  # HIGH: Accurate recognition
+    tracking_threshold: float = 0.8  # High tracking confidence
+    face_recognition_interval: int = 3  # Process every 3rd frame for stability
 
     # Advanced recognition settings
     use_multiple_models: bool = True  # Use ensemble of models for better accuracy
@@ -111,14 +111,14 @@ class AttendanceConfig:
     angle_tolerance: float = 45.0     # Maximum face angle deviation (degrees)
     lighting_normalization: bool = True  # Normalize lighting conditions
 
-    # Tracking and alerts
-    disappearance_alert_duration: float = 30.0  # seconds
-    max_tracking_distance: int = 100  # pixels for person tracking
-    min_face_size: int = 50  # minimum face size for recognition
+    # Tracking and alerts - QUALITY FOCUSED
+    disappearance_alert_duration: float = 60.0  # seconds (longer for stability)
+    max_tracking_distance: int = 50  # pixels for accurate tracking
+    min_face_size: int = 80  # minimum 80x80 pixels for good recognition
 
-    # Performance optimization
-    max_persons_to_track: int = 50  # maximum simultaneous tracking
-    cleanup_interval: float = 10.0  # seconds to clean old tracking data
+    # Performance optimization - QUALITY FOCUSED
+    max_persons_to_track: int = 10  # focus on fewer people for better accuracy
+    cleanup_interval: float = 5.0  # seconds to clean old tracking data
 
 @dataclass
 class SystemConfig:
