@@ -1,0 +1,142 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Engagement Feedback Interface</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .prediction { border: 1px solid #ccc; padding: 15px; margin: 10px 0; border-radius: 5px; }
+        .high-engagement { border-left: 5px solid #4CAF50; }
+        .medium-engagement { border-left: 5px solid #FF9800; }
+        .low-engagement { border-left: 5px solid #F44336; }
+        .feedback-form { background: #f9f9f9; padding: 15px; margin-top: 10px; border-radius: 5px; }
+        button { background: #4CAF50; color: white; padding: 10px 15px; border: none; border-radius: 3px; cursor: pointer; }
+        button:hover { background: #45a049; }
+        select, textarea { width: 100%; padding: 5px; margin: 5px 0; }
+        .stats { background: #e7f3ff; padding: 15px; border-radius: 5px; margin-bottom: 20px; }
+    </style>
+</head>
+<body>
+    <h1>Real-time Engagement Feedback</h1>
+    
+    <div class="stats" id="stats">
+        <h3>System Statistics</h3>
+        <p>Loading...</p>
+    </div>
+    
+    <div id="predictions">
+        <h3>Current Predictions</h3>
+        <p>Loading predictions...</p>
+    </div>
+
+    <script>
+        function loadPredictions() {
+            fetch('/api/current_predictions')
+                .then(response => response.json())
+                .then(data => {
+                    const container = document.getElementById('predictions');
+                    container.innerHTML = '<h3>Current Predictions</h3>';
+                    
+                    data.forEach(prediction => {
+                        const div = document.createElement('div');
+                        div.className = `prediction ${prediction.predicted_engagement.replace('_', '-')}`;
+                        div.innerHTML = `
+                            <h4>Student: ${prediction.student_id}</h4>
+                            <p><strong>Predicted:</strong> ${prediction.predicted_engagement}</p>
+                            <p><strong>Confidence:</strong> ${(prediction.confidence * 100).toFixed(1)}%</p>
+                            <div class="feedback-form">
+                                <label>Actual Engagement:</label>
+                                <select id="actual_${prediction.student_id}">
+                                    <option value="">Select actual engagement...</option>
+                                    <option value="high_engagement">High Engagement</option>
+                                    <option value="medium_engagement">Medium Engagement</option>
+                                    <option value="low_engagement">Low Engagement</option>
+                                </select>
+                                <label>Comments (optional):</label>
+                                <textarea id="comments_${prediction.student_id}" rows="2" placeholder="Additional observations..."></textarea>
+                                <button onclick="submitFeedback('${prediction.student_id}', '${prediction.predicted_engagement}', ${prediction.confidence})">
+                                    Submit Feedback
+                                </button>
+                            </div>
+                        `;
+                        container.appendChild(div);
+                    });
+                })
+                .catch(error => console.error('Error loading predictions:', error));
+        }
+        
+        function submitFeedback(studentId, predicted, confidence) {
+            const actual = document.getElementById(`actual_${studentId}`).value;
+            const comments = document.getElementById(`comments_${studentId}`).value;
+            
+            if (!actual) {
+                alert('Please select the actual engagement level');
+                return;
+            }
+            
+            const feedback = {
+                student_id: studentId,
+                predicted_engagement: predicted,
+                actual_engagement: actual,
+                confidence: confidence,
+                comments: comments,
+                feedback_type: 'teacher',
+                teacher_id: 'teacher_1', // This would come from login
+                session_id: 'current_session',
+                context: {
+                    timestamp: Date.now(),
+                    interface: 'web'
+                }
+            };
+            
+            fetch('/api/submit_feedback', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(feedback)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    alert('Feedback submitted successfully!');
+                    loadPredictions(); // Reload predictions
+                    loadStats(); // Reload stats
+                } else {
+                    alert('Error submitting feedback: ' + data.error);
+                }
+            })
+            .catch(error => {
+                console.error('Error submitting feedback:', error);
+                alert('Error submitting feedback');
+            });
+        }
+        
+        function loadStats() {
+            fetch('/api/feedback_stats')
+                .then(response => response.json())
+                .then(data => {
+                    const container = document.getElementById('stats');
+                    container.innerHTML = `
+                        <h3>System Statistics</h3>
+                        <p><strong>Total Feedback:</strong> ${data.total_feedback || 0}</p>
+                        <p><strong>Model Accuracy:</strong> ${((data.accuracy || 0) * 100).toFixed(1)}%</p>
+                        <p><strong>Recent Feedback (24h):</strong> ${data.recent_feedback_24h || 0}</p>
+                        <p><strong>Pending Feedback:</strong> ${data.feedback_queue_size || 0}</p>
+                    `;
+                })
+                .catch(error => console.error('Error loading stats:', error));
+        }
+        
+        // Load data on page load
+        loadPredictions();
+        loadStats();
+        
+        // Refresh every 30 seconds
+        setInterval(() => {
+            loadPredictions();
+            loadStats();
+        }, 30000);
+    </script>
+</body>
+</html>

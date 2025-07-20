@@ -1,0 +1,56 @@
+version: '3.8'
+
+services:
+  engagement-analyzer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: classroom-engagement-analyzer
+    ports:
+      - "5001:5001"    # Feedback interface
+      - "8080:8080"    # Main application API
+    volumes:
+      # Persist data and models
+      - ./data:/app/data
+      - ./logs:/app/logs
+      # Camera access (Linux/Mac)
+      - /dev/video0:/dev/video0
+    devices:
+      # Camera access (alternative method)
+      - /dev/video0:/dev/video0
+    environment:
+      - DISPLAY=${DISPLAY}
+      - CAMERA_INDEX=0
+      - FEEDBACK_PORT=5001
+      - API_PORT=8080
+      - LOG_LEVEL=INFO
+      - CONTINUOUS_LEARNING=true
+    privileged: true  # Required for camera access
+    network_mode: "host"  # For easier camera and display access
+    restart: unless-stopped
+    
+    # Health check
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:5001')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # Optional: Database for feedback storage
+  feedback-db:
+    image: sqlite:latest
+    container_name: engagement-feedback-db
+    volumes:
+      - ./data/feedback.db:/data/feedback.db
+    restart: unless-stopped
+
+volumes:
+  engagement_data:
+    driver: local
+  engagement_logs:
+    driver: local
+
+networks:
+  engagement_network:
+    driver: bridge
